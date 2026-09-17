@@ -1,0 +1,63 @@
+# ==============================================================================
+# RPi Automotive Infotainment - .gitignore
+# ==============================================================================
+
+# Legacy Repository (Archived code during migration)
+legacy_repo/
+
+# Virtual Environments (Desktop & Local)
+venv/
+.venv/
+env/
+ENV/
+*/venv/
+*/.venv/
+
+# Desktop Development & Temporary Scripts
+run_desktop.sh
+run_desktop*.sh
+*/run_desktop.sh
+
+# Python Bytecode & Compilation Artifacts
+__pycache__/
+*/__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Music library (user content, not shipped)
+music/
+
+# Logs and runtime dumps
+logs/
+media_history/
+*.log
+*.log.*
+
+# IDE & Editor caches
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+*~
+
+# Testing & Linting caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Local Environment & Secrets
+.env
+.env.local
+local_config.json
+
+# OS specific files
+.DS_Store
+Thumbs.db
+
+# Unused static font variants (only the Variable Font is loaded)
+Material_Symbols_Rounded/static/
