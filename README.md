@@ -52,15 +52,18 @@ L'interfaccia è costruita nativamente in **PyQt6 + QML (Qt Quick)** con acceler
 Collega il Raspberry Pi a internet (via cavo Ethernet, Wi-Fi o Hotspot dello smartphone) ed esegui i seguenti passaggi:
 
 ```bash
-# 1. Clona il repository nella tua home
+# 1. Installa git (non presente di default su Pi OS Lite)
+sudo apt update && sudo apt install -y git
+
+# 2. Clona il repository nella tua home
 cd ~
 git clone https://github.com/giulio177/CarPause.git Mito
 cd Mito
 
-# 2. Esegui lo script di installazione automatica con permessi di root
+# 3. Esegui lo script di installazione automatica con permessi di root
 sudo ./scripts/install_rpi_infotainment.sh
 
-# 3. Riavvia il Raspberry Pi per applicare driver e configurazioni
+# 4. Riavvia il Raspberry Pi per applicare driver e configurazioni
 sudo reboot
 ```
 
