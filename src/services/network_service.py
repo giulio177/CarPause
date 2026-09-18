@@ -54,18 +54,19 @@ class WiFiService:
             # Query saved Wi-Fi connection profiles and last-connected timestamps from NetworkManager
             saved_wifi_timestamps: Dict[str, int] = {}
             try:
-                con_out = subprocess.check_output(
+                con_proc = cls._run_nmcli_command(
                     ["nmcli", "-t", "-f", "NAME,TYPE,TIMESTAMP", "con", "show"],
-                    text=True, stderr=subprocess.DEVNULL, timeout=4.0
+                    timeout=5.0
                 )
-                for con_line in con_out.strip().splitlines():
-                    con_parts = re.split(r'(?<!\\):', con_line)
-                    if len(con_parts) >= 3 and con_parts[1].strip() == "802-11-wireless":
-                        prof_name = con_parts[0].replace(r"\:", ":").strip()
-                        try:
-                            saved_wifi_timestamps[prof_name] = int(con_parts[2].strip())
-                        except ValueError:
-                            saved_wifi_timestamps[prof_name] = 0
+                if con_proc.returncode == 0:
+                    for con_line in con_proc.stdout.strip().splitlines():
+                        con_parts = re.split(r'(?<!\\):', con_line)
+                        if len(con_parts) >= 3 and con_parts[1].strip() == "802-11-wireless":
+                            prof_name = con_parts[0].replace(r"\:", ":").strip()
+                            try:
+                                saved_wifi_timestamps[prof_name] = int(con_parts[2].strip())
+                            except ValueError:
+                                saved_wifi_timestamps[prof_name] = 0
             except Exception as e:
                 logger.debug("Failed to query saved connections: %s", e)
 
@@ -246,7 +247,39 @@ class WiFiService:
             proc = cls._run_nmcli_command(cmd, timeout=25.0)
             if proc.returncode == 0:
                 return True, "Connessione riuscita"
+
+            raw_err = (proc.stderr or "") + " " + (proc.stdout or "")
             error_msg = proc.stderr.strip() or proc.stdout.strip() or "Errore di connessione"
+            logger.warning("First Wi-Fi connect attempt failed for '%s': %s", ssid, error_msg)
+
+            # Fallback if NetworkManager complains about key-mgmt or missing properties
+            if password and ("key-mgmt" in raw_err.lower() or "property is missing" in raw_err.lower() or "secrets" in raw_err.lower() or "failed to add/activate" in raw_err.lower()):
+                logger.info("Attempting explicit profile creation for '%s' with wpa-psk...", ssid)
+                # 1. Clean up any corrupted existing connection profile for this SSID
+                cls._run_nmcli_command(["nmcli", "con", "delete", "id", ssid], timeout=5.0)
+                # 2. Add explicit WPA-PSK connection profile
+                add_cmd = [
+                    "nmcli", "con", "add",
+                    "type", "wifi",
+                    "con-name", ssid,
+                    "ssid", ssid,
+                    "802-11-wireless-security.key-mgmt", "wpa-psk",
+                    "802-11-wireless-security.psk", password
+                ]
+                add_proc = cls._run_nmcli_command(add_cmd, timeout=10.0)
+                if add_proc.returncode == 0:
+                    up_proc = cls._run_nmcli_command(["nmcli", "con", "up", "id", ssid], timeout=25.0)
+                    if up_proc.returncode == 0:
+                        return True, "Connessione riuscita"
+                    up_err = up_proc.stderr.strip() or up_proc.stdout.strip()
+                    logger.warning("wpa-psk connection up failed: %s, trying SAE (WPA3)...", up_err)
+                    # If WPA-PSK fails, try WPA3-SAE
+                    cls._run_nmcli_command(["nmcli", "con", "modify", ssid, "802-11-wireless-security.key-mgmt", "sae"], timeout=5.0)
+                    sae_proc = cls._run_nmcli_command(["nmcli", "con", "up", "id", ssid], timeout=25.0)
+                    if sae_proc.returncode == 0:
+                        return True, "Connessione riuscita"
+                    error_msg = sae_proc.stderr.strip() or up_err or error_msg
+
             # Pulizia prefisso standard nmcli
             if error_msg.startswith("Error:"):
                 error_msg = error_msg.replace("Error:", "").strip()
