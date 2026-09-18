@@ -18,10 +18,18 @@ from PyQt6.QtCore import Qt, QTimer, QUrl
 from backend import InfotainmentBackend
 
 # Setup structured logging
+base_logs_dir = Path(__file__).resolve().parent / "logs"
+base_logs_dir.mkdir(parents=True, exist_ok=True)
+terminal_log_file = base_logs_dir / "terminal.log"
+
+log_handlers: list = [logging.FileHandler(str(terminal_log_file), mode="a", encoding="utf-8")]
+if os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"):
+    log_handlers.append(logging.StreamHandler(sys.stdout))
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] (%(name)s) %(message)s",
-    handlers=[logging.StreamHandler(sys.stdout)],
+    handlers=log_handlers,
 )
 logger = logging.getLogger("InfotainmentApp")
 

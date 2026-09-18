@@ -64,6 +64,7 @@ class InfotainmentBackend(QObject):
     bluetoothDevicesChanged = pyqtSignal()
     bluetoothScanningChanged = pyqtSignal(bool)
     appLogsChanged = pyqtSignal()
+    terminalLogsChanged = pyqtSignal()
     airplayChanged = pyqtSignal()
     airplayStreamingChanged = pyqtSignal(bool)
     airplayExitPopupChanged = pyqtSignal(bool)
@@ -233,10 +234,17 @@ class InfotainmentBackend(QObject):
         self._log_service = LogService.get_instance(on_new_record=self._on_log_recorded_callback)
         self._current_log_file: str = self._log_service.current_filename
         self._app_logs: List[Dict[str, Any]] = self._log_service.read_logs()
+        self._terminal_logs: List[Dict[str, Any]] = self._log_service.read_terminal_logs()
         self._log_refresh_timer = QTimer(self)
         self._log_refresh_timer.setInterval(250)
         self._log_refresh_timer.setSingleShot(True)
         self._log_refresh_timer.timeout.connect(self._sync_logs_to_qml)
+
+        # Terminal log polling timer (auto-refreshes terminal logs every 2s)
+        self._terminal_poll_timer = QTimer(self)
+        self._terminal_poll_timer.setInterval(2000)
+        self._terminal_poll_timer.timeout.connect(self._poll_terminal_logs)
+        self._terminal_poll_timer.start()
 
         # Setup background polling timers
         self._setup_timers()
@@ -255,9 +263,18 @@ class InfotainmentBackend(QObject):
             pass
 
     def _sync_logs_to_qml(self) -> None:
-        """Reads session log file from disk and updates QML frontend."""
+        """Reads session log file and terminal log file from disk and updates QML frontend."""
         self._app_logs = self._log_service.read_logs(self._current_log_file)
+        self._terminal_logs = self._log_service.read_terminal_logs()
         self.appLogsChanged.emit()
+        self.terminalLogsChanged.emit()
+
+    def _poll_terminal_logs(self) -> None:
+        """Lightweight background poll for newly written terminal lines."""
+        new_logs = self._log_service.read_terminal_logs()
+        if len(new_logs) != len(self._terminal_logs):
+            self._terminal_logs = new_logs
+            self.terminalLogsChanged.emit()
 
     # -------------------------------------------------------------------------
     # Initializers & Polling Timers
@@ -1283,6 +1300,15 @@ class InfotainmentBackend(QObject):
     def appLogs(self) -> list:
         return self._app_logs
 
+    # System Terminal Output Logs (logs/terminal.log)
+    @pyqtProperty(str, notify=terminalLogsChanged)
+    def currentTerminalLogFilename(self) -> str:
+        return "terminal.log"
+
+    @pyqtProperty("QVariantList", notify=terminalLogsChanged)
+    def terminalLogs(self) -> list:
+        return self._terminal_logs
+
     # UI Navigation
     @pyqtProperty(str, notify=currentViewChanged)
     def currentView(self) -> str:
@@ -1303,6 +1329,19 @@ class InfotainmentBackend(QObject):
     def refreshLogs(self) -> None:
         """Refreshes and re-reads the log file from disk."""
         self._sync_logs_to_qml()
+
+    @pyqtSlot()
+    def clearTerminalLogs(self) -> None:
+        """Clears the contents of terminal.log on disk."""
+        self._log_service.clear_terminal_log()
+        self._terminal_logs = []
+        self.terminalLogsChanged.emit()
+
+    @pyqtSlot()
+    def refreshTerminalLogs(self) -> None:
+        """Refreshes and re-reads terminal.log from disk."""
+        self._terminal_logs = self._log_service.read_terminal_logs()
+        self.terminalLogsChanged.emit()
 
     @pyqtSlot(int)
     def setMaxVolume(self, level: int) -> None:

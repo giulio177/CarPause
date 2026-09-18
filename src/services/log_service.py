@@ -190,3 +190,51 @@ class LogService:
         ]
         files.sort(reverse=True)
         return files
+
+    @property
+    def terminal_log_path(self) -> str:
+        return os.path.join(self._base_dir, "terminal.log")
+
+    def read_terminal_logs(self, max_lines: int = 1500) -> List[Dict[str, Any]]:
+        """
+        Reads lines from terminal.log (stdout/stderr of the system).
+        Returns a structured list with line number, level indicator, and text.
+        """
+        target_path = self.terminal_log_path
+        if not os.path.exists(target_path):
+            return []
+
+        entries: List[Dict[str, Any]] = []
+        try:
+            with open(target_path, "r", encoding="utf-8", errors="replace") as f:
+                lines = f.readlines()
+                tail_lines = lines[-max_lines:] if len(lines) > max_lines else lines
+                start_line_num = max(1, len(lines) - len(tail_lines) + 1)
+                for idx, line in enumerate(tail_lines, start=start_line_num):
+                    line_clean = line.rstrip("\r\n")
+                    lower = line_clean.lower()
+                    level = "INFO"
+                    if "error" in lower or "fatal" in lower or "failed" in lower or "traceback" in lower:
+                        level = "ERROR"
+                    elif "warn" in lower or "warning" in lower:
+                        level = "WARNING"
+
+                    entries.append({
+                        "line": idx,
+                        "level": level,
+                        "text": line_clean,
+                    })
+        except Exception as exc:
+            logging.getLogger("LogService").error("Failed to read terminal log: %s", exc)
+
+        return entries
+
+    def clear_terminal_log(self) -> None:
+        """Clears the contents of terminal.log."""
+        try:
+            target_path = self.terminal_log_path
+            os.makedirs(self._base_dir, exist_ok=True)
+            with open(target_path, "w", encoding="utf-8") as f:
+                f.truncate(0)
+        except Exception as exc:
+            logging.getLogger("LogService").error("Failed to truncate terminal log: %s", exc)

@@ -66,6 +66,20 @@ if [ -f "$SCRIPT_DIR/scripts/touch_killer.py" ]; then
 fi
 
 # -----------------------------------------------------------------------------
-# 5. EXECUTION
+# 5. CONSOLE SILENCING & EXECUTION
+# Prevents any terminal text, cursor or dmesg prints from drawing on framebuffer
 # -----------------------------------------------------------------------------
-exec python3 "$SCRIPT_DIR/main.py"
+mkdir -p "$SCRIPT_DIR/logs"
+TERMINAL_LOG="$SCRIPT_DIR/logs/terminal.log"
+
+# Disable kernel printk messages from showing on the virtual console
+dmesg -D 2>/dev/null || true
+
+# Turn off virtual console blinking cursor and clear screen
+setterm -cursor off > /dev/tty1 2>/dev/null || true
+setterm -blank 0 > /dev/tty1 2>/dev/null || true
+setterm -clear all > /dev/tty1 2>/dev/null || true
+
+# Redirect all stdout & stderr to terminal.log so nothing bleeds over the UI
+echo "=== Infotainment session started: $(date) ===" >> "$TERMINAL_LOG"
+exec python3 "$SCRIPT_DIR/main.py" >> "$TERMINAL_LOG" 2>&1

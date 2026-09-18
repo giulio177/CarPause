@@ -90,7 +90,7 @@ Item {
                 SettingsNavBtn {
                     tabId: "general"
                     iconName: "info"
-                    label: "General"
+                    label: "Generale"
                 }
 
                 SettingsNavBtn {
@@ -107,8 +107,14 @@ Item {
 
                 SettingsNavBtn {
                     tabId: "logs"
+                    iconName: "description"
+                    label: "Log App"
+                }
+
+                SettingsNavBtn {
+                    tabId: "terminal"
                     iconName: "terminal"
-                    label: "Log"
+                    label: "Terminale"
                 }
 
                 Item { Layout.fillHeight: true } // Spacer
@@ -126,6 +132,7 @@ Item {
                 if (settingsRoot.currentSubTab === "wifi") return 1;
                 if (settingsRoot.currentSubTab === "bt") return 2;
                 if (settingsRoot.currentSubTab === "logs") return 3;
+                if (settingsRoot.currentSubTab === "terminal") return 4;
                 return 0; // "general"
             }
 
@@ -146,6 +153,10 @@ Item {
 
             LogsSettingsView {
                 id: logsView
+            }
+
+            TerminalSettingsView {
+                id: terminalView
             }
         }
     }
