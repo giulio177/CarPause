@@ -258,12 +258,35 @@ Rectangle {
                                         Layout.fillWidth: true
                                     }
 
-                                    // Status text (Apple-style)
-                                    Text {
-                                        text: isConnected ? "Connesso" : "Non connesso"
-                                        color: isConnected ? theme.accentGreen : theme.textMuted
-                                        font.pixelSize: 13
-                                        font.bold: isConnected
+                                    readonly property bool isConnecting: Boolean(backend.bluetoothConnectingMac && modelData && backend.bluetoothConnectingMac === modelData.mac)
+
+                                    // Status text (Apple-style with connecting spinner)
+                                    Row {
+                                        spacing: 6
+                                        Layout.alignment: Qt.AlignVCenter
+
+                                        MaterialIcon {
+                                            visible: isConnecting
+                                            name: "sync"
+                                            size: 14
+                                            iconColor: theme.accentCyan
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            RotationAnimation on rotation {
+                                                running: isConnecting
+                                                loops: Animation.Infinite
+                                                from: 0
+                                                to: 360
+                                                duration: 1000
+                                            }
+                                        }
+
+                                        Text {
+                                            text: isConnecting ? "Connessione..." : (isConnected ? "Connesso" : "Non connesso")
+                                            color: isConnecting ? theme.accentCyan : (isConnected ? theme.accentGreen : theme.textMuted)
+                                            font.pixelSize: 13
+                                            font.bold: isConnected || isConnecting
+                                            anchors.verticalCenter: parent.verticalCenter
+                                        }
                                     }
 
                                     // Blue Info Circle Button

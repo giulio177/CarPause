@@ -539,27 +539,73 @@ class BluetoothService:
 
     @classmethod
     def connect_device(cls, mac: str) -> Tuple[bool, str]:
-        """Connects to a Bluetooth device, automatically trusting and pairing if needed."""
+        """Connects to a Bluetooth device, automatically trusting, pairing, and falling back to A2DP profile if needed."""
         if not shutil.which("bluetoothctl"):
             return False, "bluetoothctl non trovato"
         try:
+            logger.info("Initiating Bluetooth connection to device [%s]...", mac)
+
             # Trust device for automatic future connection
             subprocess.run(["bluetoothctl", "trust", mac], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=2.0)
             
-            # Only attempt pairing if not already paired
+            # Check pairing status
             info_proc = subprocess.run(["bluetoothctl", "info", mac], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=2.0)
             if "Paired: yes" not in info_proc.stdout:
-                subprocess.run(["bluetoothctl", "pair", mac], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=8.0)
+                logger.info("Device [%s] is not yet paired. Attempting pairing...", mac)
+                pair_proc = subprocess.run(["bluetoothctl", "pair", mac], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=8.0)
+                logger.info("bluetoothctl pair [%s]: code=%s, out=%s, err=%s", mac, pair_proc.returncode, pair_proc.stdout.strip(), pair_proc.stderr.strip())
                 
-            # Connect
+            # Attempt whole-device connect via bluetoothctl
             proc = subprocess.run(["bluetoothctl", "connect", mac], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=12.0)
-            if proc.returncode == 0:
+            logger.info("bluetoothctl connect [%s]: code=%s, out=%s, err=%s", mac, proc.returncode, proc.stdout.strip(), proc.stderr.strip())
+
+            # Verify real connection state directly via info
+            verify_proc = subprocess.run(["bluetoothctl", "info", mac], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=2.0)
+            is_connected = "Connected: yes" in verify_proc.stdout
+
+            # Fallback: Many smartphones (especially iPhones) reject broad device Connect() from sink devices
+            # but accept specific A2DP Source / Audio profile ConnectProfile()
+            if not is_connected:
+                logger.info("Whole-device connect did not report connected. Attempting D-Bus A2DP profile connection to [%s]...", mac)
+                try:
+                    dbus_mac = "dev_" + mac.replace(":", "_").upper()
+                    dev_path = f"/org/bluez/hci0/{dbus_mac}"
+                    cmd_dbus = [
+                        "dbus-send", "--system", "--type=method_call",
+                        "--dest=org.bluez", dev_path,
+                        "org.bluez.Device1.ConnectProfile",
+                        "string:0000110a-0000-1000-8000-00805f9b34fb"
+                    ]
+                    dbus_proc = subprocess.run(cmd_dbus, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=6.0)
+                    logger.info("D-Bus A2DP ConnectProfile [%s]: code=%s, err=%s", mac, dbus_proc.returncode, dbus_proc.stderr.strip())
+
+                    # Also try AVRCP Control profile
+                    cmd_dbus_avrcp = [
+                        "dbus-send", "--system", "--type=method_call",
+                        "--dest=org.bluez", dev_path,
+                        "org.bluez.Device1.ConnectProfile",
+                        "string:0000110e-0000-1000-8000-00805f9b34fb"
+                    ]
+                    subprocess.run(cmd_dbus_avrcp, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=4.0)
+
+                    time.sleep(0.5)
+                    verify_proc2 = subprocess.run(["bluetoothctl", "info", mac], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=2.0)
+                    is_connected = "Connected: yes" in verify_proc2.stdout
+                except Exception as dbus_err:
+                    logger.warning("D-Bus ConnectProfile fallback error for [%s]: %s", mac, dbus_err)
+
+            if is_connected or proc.returncode == 0 or "Connection successful" in proc.stdout:
                 history = _load_bt_history()
                 history[mac] = int(time.time())
                 _save_bt_history(history)
+                logger.info("Successfully connected to Bluetooth device [%s]", mac)
                 return True, "Connessione Bluetooth riuscita"
-            return False, proc.stderr.strip() or proc.stdout.strip() or "Errore connessione Bluetooth"
+
+            err = proc.stderr.strip() or proc.stdout.strip() or "Errore connessione Bluetooth"
+            logger.warning("Bluetooth connection to [%s] failed: %s", mac, err)
+            return False, err
         except Exception as exc:
+            logger.error("Exception while connecting to Bluetooth [%s]: %s", mac, exc)
             return False, str(exc)
 
     @classmethod

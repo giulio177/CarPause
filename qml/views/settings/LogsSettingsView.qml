@@ -14,6 +14,7 @@ Rectangle {
 
     property string levelFilter: "ALL" // "ALL", "INFO", "WARNING", "ERROR"
     property bool autoScroll: true
+    property real savedContentY: 0
 
     // Filtered logs list
     readonly property var filteredLogs: {
@@ -28,9 +29,20 @@ Rectangle {
     }
 
     onFilteredLogsChanged: {
-        if (autoScroll && logListView.count > 0) {
-            logListView.positionViewAtEnd();
+        if (!autoScroll) {
+            savedContentY = logListView.contentY;
+            Qt.callLater(function() {
+                logListView.contentY = Math.min(savedContentY, Math.max(0, logListView.contentHeight - logListView.height));
+            });
         }
+    }
+
+    Component.onCompleted: {
+        Qt.callLater(function() {
+            if (logListView.count > 0) {
+                logListView.positionViewAtEnd();
+            }
+        });
     }
 
     ColumnLayout {
@@ -327,6 +339,12 @@ Rectangle {
                 spacing: 6
                 boundsBehavior: Flickable.StopAtBounds
                 model: logsViewRoot.filteredLogs
+
+                onCountChanged: {
+                    if (logsViewRoot.autoScroll && count > 0) {
+                        Qt.callLater(logListView.positionViewAtEnd);
+                    }
+                }
 
                 // Barra di scorrimento verticale personalizzata
                 ScrollBar.vertical: ScrollBar {

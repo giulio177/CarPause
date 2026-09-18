@@ -63,6 +63,7 @@ class InfotainmentBackend(QObject):
     bluetoothChanged = pyqtSignal()
     bluetoothDevicesChanged = pyqtSignal()
     bluetoothScanningChanged = pyqtSignal(bool)
+    bluetoothConnectingMacChanged = pyqtSignal(str)
     appLogsChanged = pyqtSignal()
     terminalLogsChanged = pyqtSignal()
     airplayChanged = pyqtSignal()
@@ -184,6 +185,7 @@ class InfotainmentBackend(QObject):
         self._bt_adapter_name: str = "Raspberry Pi"
         self._bt_scanning: bool = False
         self._bt_devices: List[Dict[str, Any]] = []
+        self._bluetooth_connecting_mac: str = ""
 
         # 9. AirPlay State (UxPlay screen mirroring)
         self._airplay_decoder: str = str(self._settings.value("airplay/decoder", "hardware"))
@@ -263,11 +265,16 @@ class InfotainmentBackend(QObject):
             pass
 
     def _sync_logs_to_qml(self) -> None:
-        """Reads session log file and terminal log file from disk and updates QML frontend."""
-        self._app_logs = self._log_service.read_logs(self._current_log_file)
-        self._terminal_logs = self._log_service.read_terminal_logs()
-        self.appLogsChanged.emit()
-        self.terminalLogsChanged.emit()
+        """Reads session log file and terminal log file from disk and updates QML frontend only if changed."""
+        new_app_logs = self._log_service.read_logs(self._current_log_file)
+        if len(new_app_logs) != len(self._app_logs):
+            self._app_logs = new_app_logs
+            self.appLogsChanged.emit()
+
+        new_terminal_logs = self._log_service.read_terminal_logs()
+        if len(new_terminal_logs) != len(self._terminal_logs):
+            self._terminal_logs = new_terminal_logs
+            self.terminalLogsChanged.emit()
 
     def _poll_terminal_logs(self) -> None:
         """Lightweight background poll for newly written terminal lines."""
@@ -1291,6 +1298,10 @@ class InfotainmentBackend(QObject):
     def availableBluetoothDevices(self) -> list:
         return self._bt_devices
 
+    @pyqtProperty(str, notify=bluetoothConnectingMacChanged)
+    def bluetoothConnectingMac(self) -> str:
+        return self._bluetooth_connecting_mac
+
     # Application Session File Logs
     @pyqtProperty(str, notify=appLogsChanged)
     def currentLogFilename(self) -> str:
@@ -1970,10 +1981,21 @@ class InfotainmentBackend(QObject):
     def connectBluetoothDevice(self, mac: str) -> None:
         """Asynchronously connects to a paired or discovered Bluetooth device."""
         logger.info("Connecting to Bluetooth device: %s", mac)
+        self._bluetooth_connecting_mac = mac
+        self.bluetoothConnectingMacChanged.emit(mac)
+
+        def _on_bt_connect_finished(res):
+            self._bluetooth_connecting_mac = ""
+            self.bluetoothConnectingMacChanged.emit("")
+            success, msg = res if isinstance(res, tuple) else (False, str(res))
+            logger.info("Bluetooth connect result for %s: success=%s, msg=%s", mac, success, msg)
+            self._query_media_and_bt_async()
+
         self._async_runner.run_async(
             BluetoothService.connect_device,
             mac,
-            on_result=lambda res: self._query_media_and_bt_async()
+            on_result=_on_bt_connect_finished,
+            on_error=lambda err: _on_bt_connect_finished((False, str(err)))
         )
 
     @pyqtSlot(str)

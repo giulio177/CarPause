@@ -89,7 +89,7 @@ Rectangle {
                 property string label: ""
                 property bool isActive: backend.currentView === viewId
 
-                width: 90
+                width: 75
                 height: 54
                 radius: theme.radiusMedium
                 color: isActive ? Qt.rgba(0, 0.898, 1, 0.12) : (navTabTap.pressed ? Qt.rgba(255, 255, 255, 0.08) : "transparent")

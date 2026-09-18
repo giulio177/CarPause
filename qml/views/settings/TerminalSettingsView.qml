@@ -14,11 +14,23 @@ Rectangle {
 
     property bool autoScroll: true
     readonly property var allTerminalLines: backend.terminalLogs || []
+    property real savedContentY: 0
 
     onAllTerminalLinesChanged: {
-        if (autoScroll && terminalListView.count > 0) {
-            terminalListView.positionViewAtEnd();
+        if (!autoScroll) {
+            savedContentY = terminalListView.contentY;
+            Qt.callLater(function() {
+                terminalListView.contentY = Math.min(savedContentY, Math.max(0, terminalListView.contentHeight - terminalListView.height));
+            });
         }
+    }
+
+    Component.onCompleted: {
+        Qt.callLater(function() {
+            if (terminalListView.count > 0) {
+                terminalListView.positionViewAtEnd();
+            }
+        });
     }
 
     ColumnLayout {
@@ -277,6 +289,12 @@ Rectangle {
                 clip: true
                 spacing: 2
                 boundsBehavior: Flickable.StopAtBounds
+
+                onCountChanged: {
+                    if (terminalViewRoot.autoScroll && count > 0) {
+                        Qt.callLater(terminalListView.positionViewAtEnd);
+                    }
+                }
 
                 ScrollBar.vertical: ScrollBar {
                     id: terminalScrollBar
