@@ -225,7 +225,9 @@ class InfotainmentBackend(QObject):
         self._map_search_results: List[Dict[str, Any]] = []
         self._map_searching: bool = False
         self._map_bookmarks: List[Dict[str, Any]] = self._map_service.get_bookmarks()
-        self._map_carto_api_key: str = str(self._settings.value("map/carto_api_key", ""))
+        env_carto_key = os.environ.get("CARTO_API_KEY", "").strip()
+        settings_carto_key = str(self._settings.value("map/carto_api_key", "")).strip()
+        self._map_carto_api_key: str = env_carto_key if env_carto_key else settings_carto_key
         if self._map_carto_api_key:
             self._map_service.set_carto_api_key(self._map_carto_api_key)
         atexit.register(self._map_service.stop_tile_proxy)

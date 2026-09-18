@@ -34,6 +34,27 @@ logging.basicConfig(
 logger = logging.getLogger("InfotainmentApp")
 
 
+def _load_dotenv() -> None:
+    env_file = Path(__file__).resolve().parent / ".env"
+    if env_file.exists():
+        try:
+            with open(env_file, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith("#") or "=" not in line:
+                        continue
+                    key, val = line.split("=", 1)
+                    key = key.strip()
+                    val = val.strip().strip("\"'")
+                    if key and key not in os.environ:
+                        os.environ[key] = val
+        except Exception as exc:
+            logger.debug("Failed to read .env file: %s", exc)
+
+
+_load_dotenv()
+
+
 def configure_rpi_environment() -> None:
     """
     Optimizes Qt Quick runtime and platform plugin for Raspberry Pi 4B.
