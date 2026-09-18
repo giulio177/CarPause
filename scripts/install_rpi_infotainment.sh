@@ -356,9 +356,10 @@ if [[ -z "${PULSE_SERVER:-}" ]]; then
 fi
 
 find_sink() {
-    TARGET_SINK=$(pactl list sinks short 2>/dev/null | grep -E "analog-stereo|Headphones|bcm2835|alsa_output" | cut -f2 | head -n1 || true)
+    # Cerca specificamente il jack cuffie 3.5mm (bcm2835 Headphones / mailbox.2)
+    TARGET_SINK=$(pactl list sinks short 2>/dev/null | grep -E "mailbox\.2|Headphones" | cut -f2 | head -n1 || true)
     if [[ -z "$TARGET_SINK" ]]; then
-        TARGET_SINK=$(pactl get-default-sink 2>/dev/null || echo "@DEFAULT_SINK@")
+        TARGET_SINK="alsa_output.platform-fe00b840.mailbox.2.stereo-fallback"
     fi
     echo "$TARGET_SINK"
 }
@@ -412,12 +413,18 @@ sudo -u "$REAL_USER" XDG_RUNTIME_DIR="/run/user/$REAL_UID" systemctl --user daem
 sudo -u "$REAL_USER" XDG_RUNTIME_DIR="/run/user/$REAL_UID" systemctl --user enable bt-loopback.service 2>/dev/null || true
 
 ###############################################################################
-# 11. Ottimizzazione Audio & Volume
+# 11. Ottimizzazione Audio & Volume (Jack Cuffie 3.5mm)
 ###############################################################################
-echo ">>> [8/8] Reset e sblocco volumi hardware ALSA..."
+echo ">>> [8/8] Configurazione Jack Cuffie 3.5mm come uscita default e reset volumi ALSA..."
+HEADPHONES_SINK="alsa_output.platform-fe00b840.mailbox.2.stereo-fallback"
+sudo -u "$REAL_USER" XDG_RUNTIME_DIR="/run/user/$REAL_UID" PULSE_SERVER="unix:/run/user/$REAL_UID/pulse/native" pactl set-default-sink "$HEADPHONES_SINK" 2>/dev/null || true
+sudo -u "$REAL_USER" XDG_RUNTIME_DIR="/run/user/$REAL_UID" PULSE_SERVER="unix:/run/user/$REAL_UID/pulse/native" pactl set-sink-volume "$HEADPHONES_SINK" 100% 2>/dev/null || true
+sudo -u "$REAL_USER" XDG_RUNTIME_DIR="/run/user/$REAL_UID" PULSE_SERVER="unix:/run/user/$REAL_UID/pulse/native" pactl set-sink-mute "$HEADPHONES_SINK" 0 2>/dev/null || true
+
 amixer set Master 100% unmute 2>/dev/null || true
-amixer -c 1 set PCM 100% unmute 2>/dev/null || true
 amixer -c 0 set Headphone 100% unmute 2>/dev/null || true
+amixer -c 1 set PCM 100% unmute 2>/dev/null || true
+amixer -c 2 set PCM 100% unmute 2>/dev/null || true
 echo
 
 ###############################################################################
