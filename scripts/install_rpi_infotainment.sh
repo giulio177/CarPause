@@ -330,6 +330,14 @@ chown "$REAL_USER:$REAL_USER" "$START_SCRIPT"
 # Abilita linger per permettere l'istanza user di PipeWire/D-Bus
 loginctl enable-linger "$REAL_USER" || true
 
+# Silenzia console printk a livello di sistema operativo
+echo "kernel.printk = 1 1 1 1" > /etc/sysctl.d/20-quiet-printk.conf
+sysctl --system 2>/dev/null || true
+
+# Maschera getty@tty1 per impedire al login prompt di disegnare su /dev/fb0
+systemctl stop getty@tty1.service 2>/dev/null || true
+systemctl mask getty@tty1.service 2>/dev/null || true
+
 cat >/etc/systemd/system/infotainment.service <<EOF
 [Unit]
 Description=Mito Automotive Infotainment (PyQt6 + QML Framebuffer)
@@ -348,7 +356,16 @@ Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$REAL_UID/bus
 Environment=HOME=$REAL_HOME
 Environment=PULSE_SERVER=unix:/run/user/$REAL_UID/pulse/native
 
-ExecStartPre=/bin/sleep 3
+# Comandi eseguiti con privilegi di root (+) prima dell'avvio:
+# 1. Silenzia i messaggi printk del kernel sulla console
+ExecStartPre=+/bin/sh -c 'dmesg -n 1 || true'
+# 2. Ferma getty su tty1 se ancora attivo
+ExecStartPre=+/bin/sh -c 'systemctl stop getty@tty1.service 2>/dev/null || true'
+# 3. Sgancia fbcon (Virtual Console) da /dev/fb0: disconnette fisicamente la console di testo dallo schermo
+ExecStartPre=+/bin/sh -c 'for v in /sys/class/vtconsole/vtcon*/name; do if grep -q "frame buffer" "$v"; then echo 0 > "\${v%name}bind" 2>/dev/null || true; fi; done'
+# 4. Pulisce la memoria video del framebuffer
+ExecStartPre=+/bin/sh -c 'dd if=/dev/zero of=/dev/fb0 bs=1024 count=2400 2>/dev/null || true'
+ExecStartPre=/bin/sleep 2
 ExecStart=$START_SCRIPT
 
 Restart=always

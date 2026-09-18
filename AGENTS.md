@@ -119,8 +119,8 @@ Default section order:
 - `src/core/`: Thread pool async runner (`QThreadPool`) ensuring zero main GUI thread blocking with safe thread teardown.
 - `scripts/`: Deployment, installation, and hardware startup scripts:
   - `touch_killer.py`: Standalone emergency watchdog continuously polling `/dev/input/event*` devices. If the user presses and holds the touchscreen continuously for 5 seconds, it forcefully terminates UxPlay (`killall -9 uxplay` and `pkill -9 -f uxplay`) to immediately restore the infotainment interface.
-  - `install_rpi_infotainment.sh`: Idempotent system-wide installer for Raspberry Pi OS (configures Full KMS `vc4-kms-v3d`, 1024x600 HDMI timings, PipeWire/ALSA, BlueZ auto-pairing, UxPlay AirPlay mirror receiver with GStreamer acceleration, user permissions, PolicyKit rules for NetworkManager, and systemd autostart).
-  - `start_infotainment.sh`: Automotive kiosk launcher optimizing Qt Quick scenegraph (`QSG_RENDER_LOOP=threaded`), platform plugins (EGLFS/Wayland), audio routing, launching `touch_killer.py`, and executing `main.py`.
+  - `install_rpi_infotainment.sh`: Idempotent system-wide installer for Raspberry Pi OS (configures Full KMS `vc4-kms-v3d`, 1024x600 HDMI timings, PipeWire/ALSA, BlueZ auto-pairing, UxPlay AirPlay mirror receiver with GStreamer acceleration, user permissions, PolicyKit rules for NetworkManager, quiet kernel printk, getty masking, and systemd autostart with root vtcon unbinding and framebuffer zeroing).
+  - `start_infotainment.sh`: Automotive kiosk launcher optimizing Qt Quick scenegraph (`QSG_RENDER_LOOP=threaded`), platform plugins (EGLFS/Wayland), audio routing, virtual console detachment (`vtcon` unbind), kernel console silencing (`dmesg -n 1`), framebuffer zeroing, launching `touch_killer.py`, and executing `main.py` with stdout/stderr redirection to `logs/terminal.log`.
   - `update_infotainment.sh`: One-click remote updater pulling latest git commits from GitHub, installing dependency updates, and restarting the application.
 
 ## Child DOX Index
