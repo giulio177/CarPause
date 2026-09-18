@@ -107,9 +107,10 @@ set_bt_key "MultiProfile" "multiple"      # Consente connessione profili multipl
 set_bt_key "Name" "Mito-Infotainment"
 
 # =========================================================================
-# 3. Servizio bt-auto-pair (No PIN + btmgmt io-cap 3)
+# 3. Servizio bt-auto-pair (No PIN)
 # =========================================================================
 echo ">>> Scrittura bt-auto-pair.service..."
+killall -9 btmgmt bt-agent 2>/dev/null || true
 
 cat >/etc/systemd/system/bt-auto-pair.service <<BTEOF
 [Unit]
@@ -119,10 +120,6 @@ Requires=bluetooth.service
 
 [Service]
 Type=simple
-ExecStartPre=-/usr/bin/btmgmt io-cap 3
-ExecStartPre=-/usr/bin/btmgmt bondable on
-ExecStartPre=-/usr/bin/btmgmt pairable on
-ExecStartPre=-/usr/bin/btmgmt connectable on
 ExecStart=/usr/bin/bt-agent -c NoInputNoOutput
 Restart=always
 RestartSec=2

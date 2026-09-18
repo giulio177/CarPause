@@ -466,8 +466,12 @@ class BluetoothService:
         try:
             # Trust device for automatic future connection
             subprocess.run(["bluetoothctl", "trust", mac], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=2.0)
-            # Attempt pair (succeeds or proceeds if already paired)
-            subprocess.run(["bluetoothctl", "pair", mac], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=8.0)
+            
+            # Only attempt pairing if not already paired
+            info_proc = subprocess.run(["bluetoothctl", "info", mac], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=2.0)
+            if "Paired: yes" not in info_proc.stdout:
+                subprocess.run(["bluetoothctl", "pair", mac], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=8.0)
+                
             # Connect
             proc = subprocess.run(["bluetoothctl", "connect", mac], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=12.0)
             if proc.returncode == 0:

@@ -210,10 +210,6 @@ Requires=bluetooth.service
 
 [Service]
 Type=simple
-ExecStartPre=-/usr/bin/btmgmt io-cap 3
-ExecStartPre=-/usr/bin/btmgmt bondable on
-ExecStartPre=-/usr/bin/btmgmt pairable on
-ExecStartPre=-/usr/bin/btmgmt connectable on
 ExecStart=/usr/bin/bt-agent -c NoInputNoOutput
 Restart=always
 RestartSec=2
