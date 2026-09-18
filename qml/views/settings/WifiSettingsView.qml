@@ -15,13 +15,39 @@ Rectangle {
     signal requestWifiConnect(string ssid)
 
     // Reactive partitions: Known/Saved/Active vs Other nearby networks
-    readonly property var allNetworks: backend.availableWifiNetworks || []
-    readonly property var myNetworks: allNetworks.filter(function(n) {
-        return n && (n.saved || n.inUse || n.active);
-    })
-    readonly property var otherNetworks: allNetworks.filter(function(n) {
-        return n && !n.saved && !n.inUse && !n.active;
-    })
+    property var allNetworks: []
+    property var myNetworks: []
+    property var otherNetworks: []
+
+    function updateNetworkLists() {
+        var list = backend.availableWifiNetworks || [];
+        var myNets = [];
+        var othNets = [];
+        for (var i = 0; i < list.length; i++) {
+            var item = list[i];
+            if (!item) continue;
+            if (item.saved || item.inUse || item.active) {
+                myNets.push(item);
+            } else {
+                othNets.push(item);
+            }
+        }
+        allNetworks = list;
+        myNetworks = myNets;
+        otherNetworks = othNets;
+    }
+
+    Component.onCompleted: updateNetworkLists()
+
+    Connections {
+        target: backend
+        function onWifiNetworksChanged() {
+            wifiSettingsRoot.updateNetworkLists();
+        }
+        function onWifiChanged() {
+            wifiSettingsRoot.updateNetworkLists();
+        }
+    }
 
     ColumnLayout {
         anchors.fill: parent
@@ -285,6 +311,13 @@ Rectangle {
                                     size: 14
                                     iconColor: theme.accentCyan
                                     anchors.verticalCenter: parent.verticalCenter
+                                    RotationAnimation on rotation {
+                                        running: backend.wifiScanning
+                                        loops: Animation.Infinite
+                                        from: 0
+                                        to: 360
+                                        duration: 1000
+                                    }
                                 }
                                 Text {
                                     text: backend.wifiScanning ? "Scansione..." : "Cerca altre"

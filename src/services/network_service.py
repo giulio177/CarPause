@@ -16,12 +16,14 @@ logger = logging.getLogger("NetworkService")
 class WiFiService:
     """Manages Wi-Fi connections via NetworkManager (nmcli)."""
 
+    _cached_networks: List[Dict[str, Any]] = []
+
     @classmethod
     def get_status_and_networks(cls, rescan: bool = False) -> Dict[str, Any]:
         """
         Scans for nearby networks and checks active Wi-Fi connection.
-        If rescan is True, forces NetworkManager to perform an active wireless probe scan.
-        Returns real status dict.
+        If rescan is True, forces NetworkManager to perform an active wireless probe scan (--rescan yes).
+        Returns real status dict with no fake/dummy data.
         """
         if not shutil.which("nmcli"):
             return {
@@ -40,54 +42,59 @@ class WiFiService:
             "ssid": "",
             "signal": 0,
             "ip": "",
-            "networks": [],
+            "networks": list(cls._cached_networks),
             "error": "",
         }
 
-        try:
-            if rescan:
-                try:
-                    subprocess.run(
-                        ["nmcli", "dev", "wifi", "rescan"],
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL,
-                        timeout=6.0
-                    )
-                except Exception:
-                    pass
+        if not status["powered"]:
+            status["networks"] = []
+            return status
 
+        try:
             # Query saved Wi-Fi connection profiles and last-connected timestamps from NetworkManager
             saved_wifi_timestamps: Dict[str, int] = {}
             try:
                 con_out = subprocess.check_output(
                     ["nmcli", "-t", "-f", "NAME,TYPE,TIMESTAMP", "con", "show"],
-                    text=True, stderr=subprocess.DEVNULL, timeout=2.0
+                    text=True, stderr=subprocess.DEVNULL, timeout=4.0
                 )
                 for con_line in con_out.strip().splitlines():
-                    con_parts = con_line.split(":")
-                    if len(con_parts) >= 3 and con_parts[1] == "802-11-wireless":
+                    con_parts = re.split(r'(?<!\\):', con_line)
+                    if len(con_parts) >= 3 and con_parts[1].strip() == "802-11-wireless":
+                        prof_name = con_parts[0].replace(r"\:", ":").strip()
                         try:
-                            saved_wifi_timestamps[con_parts[0].strip()] = int(con_parts[2].strip())
+                            saved_wifi_timestamps[prof_name] = int(con_parts[2].strip())
                         except ValueError:
-                            saved_wifi_timestamps[con_parts[0].strip()] = 0
-            except Exception:
-                pass
+                            saved_wifi_timestamps[prof_name] = 0
+            except Exception as e:
+                logger.debug("Failed to query saved connections: %s", e)
 
-            # Query networks with SSID, Signal strength, security
-            cmd = ["nmcli", "-t", "-f", "ACTIVE,SSID,SIGNAL,SECURITY", "dev", "wifi"]
-            out = subprocess.check_output(cmd, text=True, stderr=subprocess.DEVNULL, timeout=4.0)
+            # If rescan is True, ask NetworkManager for an active radio probe scan (--rescan yes)
+            # which synchronously waits for channel probing (takes ~3-8 seconds)
+            out = ""
+            if rescan:
+                try:
+                    cmd_rescan = ["nmcli", "-t", "-f", "ACTIVE,SSID,SIGNAL,SECURITY", "dev", "wifi", "list", "--rescan", "yes"]
+                    out = subprocess.check_output(cmd_rescan, text=True, stderr=subprocess.DEVNULL, timeout=15.0)
+                except Exception as e:
+                    logger.warning("Active Wi-Fi probe scan (--rescan yes) failed or timed out: %s. Falling back to cached list", e)
 
-            seen_ssids = set()
+            # Fallback to cached query if not rescan or if active rescan failed
+            if not out:
+                cmd_cached = ["nmcli", "-t", "-f", "ACTIVE,SSID,SIGNAL,SECURITY", "dev", "wifi", "list", "--rescan", "no"]
+                out = subprocess.check_output(cmd_cached, text=True, stderr=subprocess.DEVNULL, timeout=5.0)
+
+            networks_by_ssid: Dict[str, Dict[str, Any]] = {}
             for line in out.strip().splitlines():
-                parts = line.split(":")
+                parts = re.split(r'(?<!\\):', line)
                 if len(parts) >= 3:
-                    is_active = (parts[0].strip() == "yes")
-                    ssid = parts[1].strip()
+                    is_active = (parts[0].strip().lower() == "yes")
+                    ssid = parts[1].replace(r"\:", ":").strip()
                     try:
                         signal_lvl = int(parts[2].strip())
                     except ValueError:
                         signal_lvl = 0
-                    sec = parts[3].strip() if len(parts) > 3 else ""
+                    sec = parts[3].replace(r"\:", ":").strip() if len(parts) > 3 else ""
 
                     if not ssid or ssid.startswith("--"):
                         continue
@@ -100,9 +107,8 @@ class WiFiService:
                     is_saved = (ssid in saved_wifi_timestamps)
                     last_connected_ts = saved_wifi_timestamps.get(ssid, 0)
 
-                    if ssid not in seen_ssids:
-                        seen_ssids.add(ssid)
-                        status["networks"].append({
+                    if ssid not in networks_by_ssid:
+                        networks_by_ssid[ssid] = {
                             "ssid": ssid,
                             "signal": signal_lvl,
                             "security": sec,
@@ -110,13 +116,24 @@ class WiFiService:
                             "inUse": is_active,
                             "saved": is_saved,
                             "timestamp": last_connected_ts,
-                        })
+                        }
+                    else:
+                        existing = networks_by_ssid[ssid]
+                        if is_active:
+                            existing["active"] = True
+                            existing["inUse"] = True
+                        if signal_lvl > existing["signal"]:
+                            existing["signal"] = signal_lvl
+                        if is_saved:
+                            existing["saved"] = True
+                            existing["timestamp"] = max(existing.get("timestamp", 0), last_connected_ts)
 
+            parsed_networks = list(networks_by_ssid.values())
             # Strict Sorting:
             # 1. Active connection ALWAYS on top
             # 2. Saved networks ordered by last time connected (highest timestamp first)
             # 3. Unsaved networks ordered by signal strength
-            status["networks"].sort(
+            parsed_networks.sort(
                 key=lambda n: (
                     0 if n["active"] else 1,
                     -n.get("timestamp", 0),
@@ -124,13 +141,20 @@ class WiFiService:
                 )
             )
 
+            status["networks"] = parsed_networks
+            cls._cached_networks = parsed_networks
+
             if status["connected"]:
                 status["ip"] = cls.get_active_ip()
 
         except subprocess.TimeoutExpired:
             status["error"] = "Timeout scansione Wi-Fi"
+            logger.warning("Wi-Fi scan timed out, preserving %d cached networks", len(cls._cached_networks))
+            status["networks"] = list(cls._cached_networks)
         except Exception as exc:
             status["error"] = str(exc)
+            logger.warning("Wi-Fi scan error: %s, preserving %d cached networks", exc, len(cls._cached_networks))
+            status["networks"] = list(cls._cached_networks)
 
         return status
 
@@ -164,6 +188,27 @@ class WiFiService:
             return ""
 
     @classmethod
+    def _run_nmcli_command(cls, cmd: List[str], timeout: float = 25.0) -> subprocess.CompletedProcess:
+        """
+        Executes an nmcli command. If it fails due to Polkit permissions
+        ('Not authorized' or 'insufficient privileges'), automatically attempts
+        passwordless 'sudo -n' fallback.
+        """
+        proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=timeout)
+        if proc.returncode != 0:
+            combined_err = (proc.stderr or "") + " " + (proc.stdout or "")
+            if "not authorized" in combined_err.lower() or "insufficient privileges" in combined_err.lower():
+                sudo_bin = shutil.which("sudo")
+                if sudo_bin:
+                    try:
+                        sudo_cmd = [sudo_bin, "-n"] + cmd
+                        proc_sudo = subprocess.run(sudo_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=timeout)
+                        return proc_sudo
+                    except Exception as e:
+                        logger.warning("sudo -n nmcli fallback failed: %s", e)
+        return proc
+
+    @classmethod
     def connect_saved_network(cls, ssid: str) -> Tuple[bool, str]:
         """Connects to a pre-saved Wi-Fi connection profile without passing passwords."""
         if not shutil.which("nmcli"):
@@ -171,12 +216,12 @@ class WiFiService:
 
         try:
             cmd = ["nmcli", "con", "up", "id", ssid]
-            proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=20.0)
+            proc = cls._run_nmcli_command(cmd, timeout=25.0)
             if proc.returncode == 0:
                 return True, "Connessione riuscita"
             # Fallback to dev wifi connect if connection profile name differs
             cmd_fallback = ["nmcli", "dev", "wifi", "connect", ssid]
-            proc_fb = subprocess.run(cmd_fallback, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=20.0)
+            proc_fb = cls._run_nmcli_command(cmd_fallback, timeout=25.0)
             if proc_fb.returncode == 0:
                 return True, "Connessione riuscita"
             err = proc.stderr.strip() or proc_fb.stderr.strip() or "Errore di connessione"
@@ -184,7 +229,7 @@ class WiFiService:
                 err = err.replace("Error:", "").strip()
             return False, err
         except subprocess.TimeoutExpired:
-            return False, "Timeout di connessione (20 secondi)"
+            return False, "Timeout di connessione (25 secondi)"
         except Exception as exc:
             return False, str(exc)
 
@@ -198,7 +243,7 @@ class WiFiService:
             cmd = ["nmcli", "dev", "wifi", "connect", ssid]
             if password:
                 cmd.extend(["password", password])
-            proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=20.0)
+            proc = cls._run_nmcli_command(cmd, timeout=25.0)
             if proc.returncode == 0:
                 return True, "Connessione riuscita"
             error_msg = proc.stderr.strip() or proc.stdout.strip() or "Errore di connessione"
@@ -207,7 +252,7 @@ class WiFiService:
                 error_msg = error_msg.replace("Error:", "").strip()
             return False, error_msg
         except subprocess.TimeoutExpired:
-            return False, "Timeout di connessione (la rete non ha risposto in 20 secondi)"
+            return False, "Timeout di connessione (la rete non ha risposto in 25 secondi)"
         except Exception as exc:
             logger.warning("Failed to connect to Wi-Fi %s: %s", ssid, exc)
             return False, str(exc)
@@ -230,7 +275,7 @@ class WiFiService:
             return False, "Comando nmcli non disponibile"
         try:
             val = "on" if enable else "off"
-            subprocess.run(["nmcli", "radio", "wifi", val], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=4.0)
+            cls._run_nmcli_command(["nmcli", "radio", "wifi", val], timeout=4.0)
             return True, f"Wi-Fi: {val}"
         except Exception as exc:
             return False, str(exc)
@@ -242,15 +287,16 @@ class WiFiService:
             return False, "Comando nmcli non disponibile"
         try:
             if ssid:
-                proc = subprocess.run(["nmcli", "con", "down", "id", ssid], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=5.0)
+                proc = cls._run_nmcli_command(["nmcli", "con", "down", "id", ssid], timeout=5.0)
                 if proc.returncode == 0:
                     return True, f"Disconnesso da {ssid}"
             # Fallback: disconnect all active wireless connections
             con_out = subprocess.check_output(["nmcli", "-t", "-f", "NAME,TYPE,STATE", "con", "show", "--active"], text=True, stderr=subprocess.DEVNULL, timeout=2.0)
             for line in con_out.strip().splitlines():
-                parts = line.split(":")
-                if len(parts) >= 2 and parts[1] == "802-11-wireless":
-                    subprocess.run(["nmcli", "con", "down", "id", parts[0]], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=4.0)
+                parts = re.split(r'(?<!\\):', line)
+                if len(parts) >= 2 and parts[1].strip() == "802-11-wireless":
+                    prof = parts[0].replace(r"\:", ":").strip()
+                    cls._run_nmcli_command(["nmcli", "con", "down", "id", prof], timeout=4.0)
             return True, "Wi-Fi disconnesso"
         except Exception as exc:
             return False, str(exc)
@@ -261,7 +307,7 @@ class WiFiService:
         if not shutil.which("nmcli"):
             return False, "Comando nmcli non disponibile"
         try:
-            proc = subprocess.run(["nmcli", "con", "delete", "id", ssid], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=5.0)
+            proc = cls._run_nmcli_command(["nmcli", "con", "delete", "id", ssid], timeout=5.0)
             if proc.returncode == 0:
                 return True, f"Rete '{ssid}' dimenticata"
             err = proc.stderr.strip() or "Errore durante la cancellazione"

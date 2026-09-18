@@ -274,7 +274,30 @@ SUBSYSTEM=="drm", MODE="0660", GROUP="video"
 EOF
 
 udevadm control --reload-rules && udevadm trigger || true
-echo "Gruppi e permessi udev aggiornati."
+
+# Configurazione Polkit per NetworkManager (permette la gestione Wi-Fi senza sessione grafica desktop)
+mkdir -p /etc/polkit-1/rules.d
+cat >/etc/polkit-1/rules.d/10-network-manager.rules <<'EOF'
+polkit.addRule(function(action, subject) {
+    if (action.id.indexOf("org.freedesktop.NetworkManager.") === 0) {
+        if (subject.isInGroup("netdev") || subject.isInGroup("sudo")) {
+            return polkit.Result.YES;
+        }
+    }
+});
+EOF
+
+mkdir -p /etc/polkit-1/localauthority/50-local.d
+cat >/etc/polkit-1/localauthority/50-local.d/10-network-manager.pkla <<'EOF'
+[NetworkManager Permissions]
+Identity=unix-group:netdev;unix-group:sudo
+Action=org.freedesktop.NetworkManager.*
+ResultAny=yes
+ResultInactive=yes
+ResultActive=yes
+EOF
+
+echo "Gruppi, permessi udev e regole Polkit NetworkManager aggiornati."
 echo
 
 ###############################################################################

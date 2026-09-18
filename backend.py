@@ -54,6 +54,7 @@ class InfotainmentBackend(QObject):
     currentViewChanged = pyqtSignal(str)
     obdChanged = pyqtSignal()
     wifiChanged = pyqtSignal()
+    wifiNetworksChanged = pyqtSignal()
     wifiPoweredChanged = pyqtSignal(bool)
     wifiConnectingChanged = pyqtSignal(bool)
     wifiStatusMessageChanged = pyqtSignal(str)
@@ -921,12 +922,16 @@ class InfotainmentBackend(QObject):
     @pyqtSlot()
     def scanWifi(self) -> None:
         """Triggers asynchronous Wi-Fi scan via nmcli."""
-        self._async_runner.run_async(WiFiService.get_status_and_networks, on_result=self._on_wifi_received)
+        self._async_runner.run_async(
+            lambda: WiFiService.get_status_and_networks(rescan=False),
+            on_result=self._on_wifi_received
+        )
 
     @pyqtSlot()
     def rescanWifi(self) -> None:
         """Triggers active Wi-Fi rescan for nearby networks."""
         if self._wifi_scanning:
+            logger.info("Wi-Fi scan already in progress, ignoring duplicate trigger")
             return
         self._wifi_scanning = True
         self.wifiScanningChanged.emit(True)
@@ -938,7 +943,7 @@ class InfotainmentBackend(QObject):
         def _on_done(wifi_info: dict) -> None:
             self._wifi_scanning = False
             self.wifiScanningChanged.emit(False)
-            logger.info("Active Wi-Fi rescan finished")
+            logger.info("Active Wi-Fi rescan finished (%d networks found)", len(wifi_info.get("networks", [])))
             self._on_wifi_received(wifi_info)
 
         self._async_runner.run_async(
@@ -953,7 +958,10 @@ class InfotainmentBackend(QObject):
         self._wifi_ssid = wifi_info.get("ssid", "")
         self._wifi_signal = wifi_info.get("signal", 0)
         self._wifi_ip = wifi_info.get("ip", "")
-        self._wifi_networks = wifi_info.get("networks", [])
+        if "networks" in wifi_info:
+            self._wifi_networks = wifi_info["networks"]
+            self.wifiNetworksChanged.emit()
+            logger.info("Wi-Fi network list updated: %d networks", len(self._wifi_networks))
         self.wifiChanged.emit()
         self.wifiPoweredChanged.emit(self._wifi_powered)
 
@@ -1169,7 +1177,7 @@ class InfotainmentBackend(QObject):
     def wifiSignal(self) -> int:
         return self._wifi_signal
 
-    @pyqtProperty("QVariantList", notify=wifiChanged)
+    @pyqtProperty("QVariantList", notify=wifiNetworksChanged)
     def availableWifiNetworks(self) -> list:
         return self._wifi_networks
 
