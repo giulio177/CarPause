@@ -570,7 +570,164 @@ Rectangle {
             }
 
             // ================================================================
-            // 4. AZIONI RAPIDE
+            // 4. MAPPE & CARTO API KEY
+            // ================================================================
+            Row {
+                spacing: 10
+                MaterialIcon {
+                    name: "map"
+                    size: 22
+                    iconColor: theme.accentCyan
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+                Text {
+                    text: "MAPPE & CHIAVE API CARTO"
+                    color: theme.textPrimary
+                    font.pixelSize: 15
+                    font.bold: true
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+            }
+
+            Rectangle {
+                Layout.fillWidth: true
+                height: 1
+                color: theme.surfaceBorder
+            }
+
+            Rectangle {
+                Layout.fillWidth: true
+                radius: theme.radiusMedium
+                color: theme.surfaceElevated
+                border.color: theme.surfaceBorder
+                border.width: 1
+                implicitHeight: cartoCol.implicitHeight + 28
+
+                ColumnLayout {
+                    id: cartoCol
+                    anchors.fill: parent
+                    anchors.margins: 14
+                    spacing: 12
+
+                    Text {
+                        text: "Per rimuovere la filigrana 'API KEY REQUIRED' dalle mappe notturne CARTO, inserisci la chiave gratuita (5 milioni di tile/mese) ottenibile su carto.com/basemaps/apikey senza account."
+                        color: theme.textSecondary
+                        font.pixelSize: 12
+                        wrapMode: Text.WordWrap
+                        Layout.fillWidth: true
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 10
+
+                        Rectangle {
+                            Layout.fillWidth: true
+                            height: 42
+                            radius: 8
+                            color: theme.surfaceDark
+                            border.color: cartoInput.activeFocus ? theme.accentCyan : theme.surfaceBorder
+                            border.width: 1
+
+                            TextInput {
+                                id: cartoInput
+                                anchors.fill: parent
+                                anchors.leftMargin: 12
+                                anchors.rightMargin: 12
+                                verticalAlignment: TextInput.AlignVCenter
+                                text: backend ? backend.mapCartoApiKey : ""
+                                color: theme.textPrimary
+                                font.pixelSize: 13
+                                clip: true
+
+                                Text {
+                                    text: "Incolla o inserisci qui la chiave API CARTO..."
+                                    color: theme.textMuted
+                                    font.pixelSize: 13
+                                    visible: !cartoInput.text
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                            }
+                        }
+
+                        // Salva Button
+                        Rectangle {
+                            width: 90
+                            height: 42
+                            radius: 8
+                            color: saveKeyTap.pressed ? theme.surfaceBorder : theme.surfaceDark
+                            border.color: theme.accentCyan
+                            border.width: 1
+
+                            Row {
+                                anchors.centerIn: parent
+                                spacing: 6
+                                MaterialIcon {
+                                    name: "check"
+                                    size: 18
+                                    iconColor: theme.accentCyan
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                                Text {
+                                    text: "Salva"
+                                    color: theme.accentCyan
+                                    font.pixelSize: 13
+                                    font.bold: true
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                            }
+
+                            TapHandler {
+                                id: saveKeyTap
+                                onTapped: {
+                                    if (backend) {
+                                        backend.setMapCartoApiKey(cartoInput.text.trim());
+                                    }
+                                }
+                            }
+                        }
+
+                        // Svuota Cache Button
+                        Rectangle {
+                            width: 130
+                            height: 42
+                            radius: 8
+                            color: clearCacheTap.pressed ? theme.surfaceBorder : theme.surfaceDark
+                            border.color: theme.surfaceBorder
+                            border.width: 1
+
+                            Row {
+                                anchors.centerIn: parent
+                                spacing: 6
+                                MaterialIcon {
+                                    name: "delete_sweep"
+                                    size: 18
+                                    iconColor: theme.accentYellow
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                                Text {
+                                    text: "Svuota Cache"
+                                    color: theme.textSecondary
+                                    font.pixelSize: 12
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                            }
+
+                            TapHandler {
+                                id: clearCacheTap
+                                onTapped: {
+                                    if (backend) {
+                                        backend.clearMapCache();
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ================================================================
+            // 5. AZIONI RAPIDE
             // ================================================================
             Item { Layout.preferredHeight: 4 } // Spaziatore
 

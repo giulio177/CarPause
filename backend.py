@@ -77,6 +77,7 @@ class InfotainmentBackend(QObject):
     mapSearchResultsChanged = pyqtSignal()
     mapSearchingChanged = pyqtSignal(bool)
     mapBookmarksChanged = pyqtSignal()
+    mapCartoApiKeyChanged = pyqtSignal()
 
     def __init__(self, parent: Optional[QObject] = None):
         super().__init__(parent)
@@ -224,6 +225,9 @@ class InfotainmentBackend(QObject):
         self._map_search_results: List[Dict[str, Any]] = []
         self._map_searching: bool = False
         self._map_bookmarks: List[Dict[str, Any]] = self._map_service.get_bookmarks()
+        self._map_carto_api_key: str = str(self._settings.value("map/carto_api_key", ""))
+        if self._map_carto_api_key:
+            self._map_service.set_carto_api_key(self._map_carto_api_key)
         atexit.register(self._map_service.stop_tile_proxy)
 
         # 11. Software Update State (Git pull via scripts/update_infotainment.sh)
@@ -1386,6 +1390,10 @@ class InfotainmentBackend(QObject):
     def mapBookmarks(self) -> list:
         return self._map_bookmarks
 
+    @pyqtProperty(str, notify=mapCartoApiKeyChanged)
+    def mapCartoApiKey(self) -> str:
+        return self._map_carto_api_key
+
     # -------------------------------------------------------------------------
     # QML Slots
     # -------------------------------------------------------------------------
@@ -2324,3 +2332,19 @@ class InfotainmentBackend(QObject):
         self._map_service.remove_bookmark(name)
         self._map_bookmarks = self._map_service.get_bookmarks()
         self.mapBookmarksChanged.emit()
+
+    @pyqtSlot(str)
+    def setMapCartoApiKey(self, key: str) -> None:
+        """Saves and updates the CARTO API key, purging cached tiles to reload clean ones."""
+        clean_key = key.strip()
+        if clean_key != self._map_carto_api_key:
+            self._map_carto_api_key = clean_key
+            self._settings.setValue("map/carto_api_key", self._map_carto_api_key)
+            self._map_service.set_carto_api_key(self._map_carto_api_key)
+            self._map_service.clear_tile_cache()
+            self.mapCartoApiKeyChanged.emit()
+
+    @pyqtSlot()
+    def clearMapCache(self) -> None:
+        """Purges local disk cache so newly requested tiles fetch cleanly from upstream."""
+        self._map_service.clear_tile_cache()

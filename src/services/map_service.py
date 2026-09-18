@@ -11,6 +11,7 @@ Provides:
 import os
 import math
 import json
+import shutil
 import logging
 import urllib.request
 import urllib.parse
@@ -44,6 +45,7 @@ class TileProxyHandler(BaseHTTPRequestHandler):
     """Serves map tiles from local disk cache, fetching and caching on demand."""
 
     cache_dir: Path = Path.home() / ".cache" / "mito_maps"
+    carto_api_key: str = ""
 
     def do_GET(self) -> None:
         # Expected path format: /tiles/{theme}/{z}/{x}/{y}.png
@@ -98,6 +100,8 @@ class TileProxyHandler(BaseHTTPRequestHandler):
         # Not in cache, fetch from upstream provider
         tmpl = TILE_PROVIDERS.get(theme, TILE_PROVIDERS["dark"])
         url = tmpl.format(z=z, x=x, y=y)
+        if "cartocdn.com" in url and self.carto_api_key:
+            url += f"?key={self.carto_api_key}"
 
         try:
             req = urllib.request.Request(
@@ -134,9 +138,11 @@ class MapService:
 
     def __init__(self, port: int = 8585):
         self._port = port
+        self._carto_api_key: str = ""
         self._cache_dir = Path.home() / ".cache" / "mito_maps"
         self._cache_dir.mkdir(parents=True, exist_ok=True)
         TileProxyHandler.cache_dir = self._cache_dir
+        TileProxyHandler.carto_api_key = self._carto_api_key
 
         self._server: Optional[ThreadingHTTPServer] = None
         self._server_thread: Optional[threading.Thread] = None
@@ -178,6 +184,25 @@ class MapService:
             except Exception:
                 pass
             self._server = None
+
+    def set_carto_api_key(self, api_key: str) -> None:
+        """Configures the CARTO API key for upstream raster tile requests."""
+        self._carto_api_key = api_key.strip()
+        TileProxyHandler.carto_api_key = self._carto_api_key
+        logger.info("CARTO API key updated: %s", (self._carto_api_key[:6] + "...") if self._carto_api_key else "None")
+
+    def clear_tile_cache(self) -> None:
+        """Purges local disk cache so newly requested tiles fetch cleanly from upstream."""
+        try:
+            if self._cache_dir.exists():
+                for item in self._cache_dir.iterdir():
+                    if item.is_dir():
+                        shutil.rmtree(item)
+                    else:
+                        item.unlink()
+                logger.info("Map tile disk cache purged successfully.")
+        except Exception as exc:
+            logger.warning("Error purging tile disk cache: %s", exc)
 
     # -------------------------------------------------------------------------
     # Slippy Map Coordinate Mathematics
