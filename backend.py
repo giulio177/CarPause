@@ -184,7 +184,7 @@ class InfotainmentBackend(QObject):
         self._bt_devices: List[Dict[str, Any]] = []
 
         # 9. AirPlay State (UxPlay screen mirroring)
-        self._airplay_decoder: str = str(self._settings.value("airplay/decoder", "software"))
+        self._airplay_decoder: str = str(self._settings.value("airplay/decoder", "hardware"))
         self._airplay_service = AirPlayService(server_name="Mito-AirPlay", decoder_mode=self._airplay_decoder)
         self._airplay_available: bool = AirPlayService.is_available()
         self._airplay_running: bool = False

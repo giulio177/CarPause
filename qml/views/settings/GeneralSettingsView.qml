@@ -145,7 +145,7 @@ Rectangle {
                             Text {
                                 id: airplayLabel
                                 anchors.centerIn: parent
-                                text: backend.airplayRunning ? (backend.airplayDecoder === "software" ? "Attivo (Colori Fedeli avdec)" : "Attivo (Hardware)") : "Disattivato"
+                                text: backend.airplayRunning ? (backend.airplayDecoder === "hardware" ? "Attivo (Hardware 60fps)" : "Attivo (Software avdec)") : "Disattivato"
                                 color: backend.airplayRunning ? theme.accentGreen : theme.textMuted
                                 font.pixelSize: 10
                                 font.bold: true

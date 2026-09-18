@@ -529,7 +529,7 @@ Item {
         // ====================================================================
         Rectangle {
             Layout.fillWidth: true
-            height: 40
+            height: 46
             radius: theme.radiusMedium
             color: theme.surfaceDark
             border.color: theme.surfaceBorder
@@ -538,8 +538,8 @@ Item {
             RowLayout {
                 anchors.fill: parent
                 anchors.leftMargin: 16
-                anchors.rightMargin: 16
-                spacing: 10
+                anchors.rightMargin: 14
+                spacing: 12
 
                 MaterialIcon {
                     name: "touch_app"
@@ -548,48 +548,93 @@ Item {
                 }
 
                 Text {
-                    text: "Durante la duplicazione schermo, tocca lo schermo per mostrare la X in alto a destra per uscire, oppure tieni premuto per 5 secondi."
+                    text: "Durante la duplicazione schermo, tocca per mostrare la X in alto a destra o tieni premuto 5s."
                     color: theme.textSecondary
-                    font.pixelSize: 12
+                    font.pixelSize: 11
                     Layout.fillWidth: true
+                    elide: Text.ElideRight
                 }
 
-                // Decoder Mode Indicator / Quick Toggle
-                Rectangle {
-                    height: 24
-                    radius: 12
-                    color: backend.airplayDecoder === "software" ? "#143026" : "#2E2419"
-                    border.color: backend.airplayDecoder === "software" ? theme.accentGreen : theme.accentYellow
-                    border.width: 1
-                    implicitWidth: decoderLabel.implicitWidth + 20
+                // Decoder Mode Selector: Explicit Hardware vs Software Buttons
+                Row {
+                    spacing: 6
+                    Layout.alignment: Qt.AlignVCenter
 
-                    Row {
-                        anchors.centerIn: parent
-                        spacing: 5
+                    // Hardware 60 FPS Button
+                    Rectangle {
+                        height: 30
+                        radius: 15
+                        color: backend.airplayDecoder === "hardware" ? "#1A472A" : "#1A1D24"
+                        border.color: backend.airplayDecoder === "hardware" ? theme.accentGreen : theme.surfaceBorder
+                        border.width: backend.airplayDecoder === "hardware" ? 1.5 : 1
+                        implicitWidth: hwRow.implicitWidth + 20
 
-                        MaterialIcon {
-                            name: backend.airplayDecoder === "software" ? "palette" : "speed"
-                            size: 13
-                            iconColor: backend.airplayDecoder === "software" ? theme.accentGreen : theme.accentYellow
-                            anchors.verticalCenter: parent.verticalCenter
+                        Row {
+                            id: hwRow
+                            anchors.centerIn: parent
+                            spacing: 5
+
+                            MaterialIcon {
+                                name: "bolt"
+                                size: 14
+                                iconColor: backend.airplayDecoder === "hardware" ? theme.accentGreen : theme.textMuted
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+
+                            Text {
+                                text: "Hardware (60 FPS)"
+                                color: backend.airplayDecoder === "hardware" ? theme.accentGreen : theme.textSecondary
+                                font.pixelSize: 11
+                                font.bold: backend.airplayDecoder === "hardware"
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
                         }
 
-                        Text {
-                            id: decoderLabel
-                            text: backend.airplayDecoder === "software" ? "Colori Fedeli (avdec)" : "Hardware (v4l2)"
-                            color: backend.airplayDecoder === "software" ? theme.accentGreen : theme.accentYellow
-                            font.pixelSize: 10
-                            font.bold: true
-                            anchors.verticalCenter: parent.verticalCenter
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                backend.setAirPlayDecoder("hardware");
+                            }
                         }
                     }
 
-                    MouseArea {
-                        anchors.fill: parent
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: {
-                            var nextMode = backend.airplayDecoder === "software" ? "hardware" : "software";
-                            backend.setAirPlayDecoder(nextMode);
+                    // Software (avdec) Button
+                    Rectangle {
+                        height: 30
+                        radius: 15
+                        color: backend.airplayDecoder === "software" ? "#2E2419" : "#1A1D24"
+                        border.color: backend.airplayDecoder === "software" ? theme.accentYellow : theme.surfaceBorder
+                        border.width: backend.airplayDecoder === "software" ? 1.5 : 1
+                        implicitWidth: swRow.implicitWidth + 20
+
+                        Row {
+                            id: swRow
+                            anchors.centerIn: parent
+                            spacing: 5
+
+                            MaterialIcon {
+                                name: "tune"
+                                size: 14
+                                iconColor: backend.airplayDecoder === "software" ? theme.accentYellow : theme.textMuted
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+
+                            Text {
+                                text: "Software (avdec)"
+                                color: backend.airplayDecoder === "software" ? theme.accentYellow : theme.textSecondary
+                                font.pixelSize: 11
+                                font.bold: backend.airplayDecoder === "software"
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                backend.setAirPlayDecoder("software");
+                            }
                         }
                     }
                 }

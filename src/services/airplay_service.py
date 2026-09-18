@@ -148,9 +148,9 @@ class AirPlayService:
     Subprocess lifecycle manager for UxPlay AirPlay mirroring server.
     """
 
-    def __init__(self, server_name: str = "Mito-AirPlay", decoder_mode: str = "software", video_sink: str = "auto"):
+    def __init__(self, server_name: str = "Mito-AirPlay", decoder_mode: str = "hardware", video_sink: str = "auto"):
         self._server_name = server_name
-        self._decoder_mode = decoder_mode  # "software" (avdec) or "hardware" (bt709)
+        self._decoder_mode = decoder_mode  # "hardware" (bt709 60fps) or "software" (avdec)
         self._video_sink = video_sink      # "auto", "kmssink", "glimagesink", "waylandsink"
         self._lock = threading.Lock()
         self._process: Optional[subprocess.Popen] = None
