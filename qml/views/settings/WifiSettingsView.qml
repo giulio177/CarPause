@@ -257,19 +257,74 @@ Rectangle {
                 Column {
                     width: parent.width
                     spacing: 8
-                    visible: wifiSettingsRoot.otherNetworks.length > 0
 
-                    Text {
-                        text: "ALTRE RETI"
-                        color: theme.textMuted
-                        font.pixelSize: 11
-                        font.bold: true
-                        leftPadding: 4
+                    RowLayout {
+                        width: parent.width
+                        Text {
+                            text: "ALTRE RETI"
+                            color: theme.textMuted
+                            font.pixelSize: 11
+                            font.bold: true
+                            leftPadding: 4
+                        }
+
+                        Item { Layout.fillWidth: true }
+
+                        // Scan button/indicator
+                        Rectangle {
+                            implicitWidth: 120
+                            implicitHeight: 28
+                            radius: 6
+                            color: backend.wifiScanning ? theme.surfaceElevated : (otherWifiScanArea.pressed ? theme.surfaceBorder : "transparent")
+
+                            Row {
+                                anchors.centerIn: parent
+                                spacing: 4
+                                MaterialIcon {
+                                    name: backend.wifiScanning ? "sync" : "search"
+                                    size: 14
+                                    iconColor: theme.accentCyan
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                                Text {
+                                    text: backend.wifiScanning ? "Scansione..." : "Cerca altre"
+                                    color: theme.accentCyan
+                                    font.pixelSize: 11
+                                    font.bold: true
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                            }
+
+                            MouseArea {
+                                id: otherWifiScanArea
+                                anchors.fill: parent
+                                enabled: !backend.wifiScanning
+                                onClicked: backend.rescanWifi()
+                            }
+                        }
+                    }
+
+                    // Placeholder if no other networks currently in cache
+                    Rectangle {
+                        visible: wifiSettingsRoot.otherNetworks.length === 0
+                        width: wifiListColumn.width
+                        height: 52
+                        radius: theme.radiusMedium
+                        color: theme.surfaceElevated
+                        border.color: theme.surfaceBorder
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: backend.wifiScanning ? "Ricerca reti in corso..." : "Nessun'altra rete nelle vicinanze"
+                            color: theme.textMuted
+                            font.pixelSize: 13
+                        }
                     }
 
                     Column {
                         width: parent.width
                         spacing: 8
+                        visible: wifiSettingsRoot.otherNetworks.length > 0
 
                         Repeater {
                             model: wifiSettingsRoot.otherNetworks

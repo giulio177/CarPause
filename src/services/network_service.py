@@ -17,9 +17,10 @@ class WiFiService:
     """Manages Wi-Fi connections via NetworkManager (nmcli)."""
 
     @classmethod
-    def get_status_and_networks(cls) -> Dict[str, Any]:
+    def get_status_and_networks(cls, rescan: bool = False) -> Dict[str, Any]:
         """
         Scans for nearby networks and checks active Wi-Fi connection.
+        If rescan is True, forces NetworkManager to perform an active wireless probe scan.
         Returns real status dict.
         """
         if not shutil.which("nmcli"):
@@ -44,6 +45,17 @@ class WiFiService:
         }
 
         try:
+            if rescan:
+                try:
+                    subprocess.run(
+                        ["nmcli", "dev", "wifi", "rescan"],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                        timeout=6.0
+                    )
+                except Exception:
+                    pass
+
             # Query saved Wi-Fi connection profiles and last-connected timestamps from NetworkManager
             saved_wifi_timestamps: Dict[str, int] = {}
             try:

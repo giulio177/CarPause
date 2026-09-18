@@ -61,7 +61,7 @@ apt install -y \
     git python3-venv python3-pip python3-dev build-essential pkg-config cmake \
     python3-dbus python3-gi gir1.2-glib-2.0 dbus-user-session libglib2.0-dev libdbus-1-dev \
     network-manager \
-    pipewire pipewire-pulse wireplumber alsa-utils libasound2-dev \
+    pipewire pipewire-pulse wireplumber libspa-0.2-bluetooth alsa-utils libasound2-dev \
     bluez bluez-tools pi-bluetooth bluez-firmware \
     ffmpeg libavcodec-extra rfkill \
     avahi-daemon avahi-utils libavahi-compat-libdnssd-dev libssl-dev libplist-dev \
@@ -193,11 +193,12 @@ set_bt_key() {
 }
 
 set_bt_key "Class" "0x200420"             # Car Audio CoD
-set_bt_key "DiscoverableTimeout" "30"     # 30s timeout
+set_bt_key "DiscoverableTimeout" "0"      # Sempre visibile su richiesta
 set_bt_key "PairableTimeout" "0"          # Sempre accoppiabile quando visibile
 set_bt_key "JustWorksRepairing" "always"  # No PIN pairing
 set_bt_key "AutoEnable" "true"            # Acceso al boot
-set_bt_key "ControllerMode" "bredr"       # Standard A2DP
+set_bt_key "ControllerMode" "dual"        # Supporta A2DP e BLE
+set_bt_key "MultiProfile" "multiple"      # Più profili simultanei
 set_bt_key "Name" "Mito-Infotainment"
 
 # Servizio Systemd per l'agente auto-accept "Just Works" (No PIN)
@@ -209,6 +210,10 @@ Requires=bluetooth.service
 
 [Service]
 Type=simple
+ExecStartPre=-/usr/bin/btmgmt io-cap 3
+ExecStartPre=-/usr/bin/btmgmt bondable on
+ExecStartPre=-/usr/bin/btmgmt pairable on
+ExecStartPre=-/usr/bin/btmgmt connectable on
 ExecStart=/usr/bin/bt-agent -c NoInputNoOutput
 Restart=always
 RestartSec=2

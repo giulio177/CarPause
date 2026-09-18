@@ -58,6 +58,7 @@ class InfotainmentBackend(QObject):
     wifiConnectingChanged = pyqtSignal(bool)
     wifiStatusMessageChanged = pyqtSignal(str)
     wifiConnectedSuccessfully = pyqtSignal(str)
+    wifiScanningChanged = pyqtSignal(bool)
     bluetoothChanged = pyqtSignal()
     bluetoothDevicesChanged = pyqtSignal()
     bluetoothScanningChanged = pyqtSignal(bool)
@@ -170,6 +171,7 @@ class InfotainmentBackend(QObject):
         self._wifi_ip: str = ""
         self._wifi_networks: List[Dict[str, Any]] = []
         self._wifi_connecting: bool = False
+        self._wifi_scanning: bool = False
         self._wifi_status_message: str = ""
 
         # 8. Network: Bluetooth State (Real BlueZ)
@@ -920,6 +922,30 @@ class InfotainmentBackend(QObject):
         """Triggers asynchronous Wi-Fi scan via nmcli."""
         self._async_runner.run_async(WiFiService.get_status_and_networks, on_result=self._on_wifi_received)
 
+    @pyqtSlot()
+    def rescanWifi(self) -> None:
+        """Triggers active Wi-Fi rescan for nearby networks."""
+        if self._wifi_scanning:
+            return
+        self._wifi_scanning = True
+        self.wifiScanningChanged.emit(True)
+        logger.info("Starting active Wi-Fi rescan...")
+
+        def _scan_worker() -> dict:
+            return WiFiService.get_status_and_networks(rescan=True)
+
+        def _on_done(wifi_info: dict) -> None:
+            self._wifi_scanning = False
+            self.wifiScanningChanged.emit(False)
+            logger.info("Active Wi-Fi rescan finished")
+            self._on_wifi_received(wifi_info)
+
+        self._async_runner.run_async(
+            _scan_worker,
+            on_result=_on_done,
+            on_error=lambda err: _on_done({"error": str(err)})
+        )
+
     def _on_wifi_received(self, wifi_info: dict) -> None:
         self._wifi_powered = wifi_info.get("powered", True)
         self._wifi_connected = wifi_info.get("connected", False)
@@ -1149,6 +1175,10 @@ class InfotainmentBackend(QObject):
     @pyqtProperty(bool, notify=wifiConnectingChanged)
     def wifiConnecting(self) -> bool:
         return self._wifi_connecting
+
+    @pyqtProperty(bool, notify=wifiScanningChanged)
+    def wifiScanning(self) -> bool:
+        return self._wifi_scanning
 
     @pyqtProperty(str, notify=wifiStatusMessageChanged)
     def wifiStatusMessage(self) -> str:

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-# apply_service.sh - Write correct systemd service files + fix display config
+# apply_service.sh - Write correct systemd service files + fix display & BT audio
 # Run with: sudo ./scripts/apply_service.sh
 # =============================================================================
 set -euo pipefail
@@ -66,7 +66,75 @@ if [[ -f "$CMDLINE_FILE" ]]; then
 fi
 
 # =========================================================================
-# 2. Servizio infotainment (linuxfb diretto, senza cage)
+# 2. Fix Bluetooth Audio & Stack (libspa-0.2-bluetooth, main.conf, btmgmt)
+# =========================================================================
+echo ">>> Configurazione Bluetooth A2DP & PipeWire..."
+
+# Sblocco RFKill
+rfkill unblock bluetooth 2>/dev/null || true
+
+# Installa modulo Bluetooth per PipeWire se mancante
+if ! dpkg -l | grep -q "libspa-0.2-bluetooth"; then
+    echo "  Installazione libspa-0.2-bluetooth per audio smartphone..."
+    apt-get update -qq && apt-get install -y libspa-0.2-bluetooth
+fi
+
+# Configurazione /etc/bluetooth/main.conf
+BT_CONF="/etc/bluetooth/main.conf"
+if [[ ! -f "$BT_CONF" ]]; then
+    echo "[General]" > "$BT_CONF"
+elif ! grep -q '^\[General\]' "$BT_CONF"; then
+    sed -i '1i[General]' "$BT_CONF"
+fi
+
+set_bt_key() {
+    local k="$1"
+    local v="$2"
+    if grep -q "^$k" "$BT_CONF"; then
+        sed -i "s/^$k.*/$k = $v/" "$BT_CONF"
+    else
+        sed -i "/^\[General\]/a $k = $v" "$BT_CONF"
+    fi
+}
+
+set_bt_key "Class" "0x200420"             # Car Audio CoD
+set_bt_key "DiscoverableTimeout" "0"      # Sempre visibile quando richiesto
+set_bt_key "PairableTimeout" "0"          # Sempre accoppiabile
+set_bt_key "JustWorksRepairing" "always"  # No PIN pairing automatico
+set_bt_key "AutoEnable" "true"            # Acceso al boot
+set_bt_key "ControllerMode" "dual"        # Supporta sia Classic (A2DP) che BLE
+set_bt_key "MultiProfile" "multiple"      # Consente connessione profili multipli
+set_bt_key "Name" "Mito-Infotainment"
+
+# =========================================================================
+# 3. Servizio bt-auto-pair (No PIN + btmgmt io-cap 3)
+# =========================================================================
+echo ">>> Scrittura bt-auto-pair.service..."
+
+cat >/etc/systemd/system/bt-auto-pair.service <<BTEOF
+[Unit]
+Description=Bluetooth Auto-Accept Agent (No PIN, Auto-Pairing)
+After=bluetooth.service
+Requires=bluetooth.service
+
+[Service]
+Type=simple
+ExecStartPre=-/usr/bin/btmgmt io-cap 3
+ExecStartPre=-/usr/bin/btmgmt bondable on
+ExecStartPre=-/usr/bin/btmgmt pairable on
+ExecStartPre=-/usr/bin/btmgmt connectable on
+ExecStart=/usr/bin/bt-agent -c NoInputNoOutput
+Restart=always
+RestartSec=2
+TimeoutStopSec=3
+KillMode=process
+
+[Install]
+WantedBy=multi-user.target
+BTEOF
+
+# =========================================================================
+# 4. Servizio infotainment (linuxfb diretto, senza cage)
 # =========================================================================
 echo ">>> Scrittura infotainment.service (linuxfb framebuffer)..."
 
@@ -103,35 +171,22 @@ WantedBy=multi-user.target
 SVCEOF
 
 # =========================================================================
-# 3. Servizio bt-auto-pair (timeout 3s)
+# 5. Linger, PipeWire user services, reload + enable
 # =========================================================================
-echo ">>> Scrittura bt-auto-pair.service..."
-
-cat >/etc/systemd/system/bt-auto-pair.service <<BTEOF
-[Unit]
-Description=Bluetooth Auto-Accept Agent (No PIN, Auto-Pairing)
-After=bluetooth.service
-Requires=bluetooth.service
-
-[Service]
-Type=simple
-ExecStart=/usr/bin/bt-agent -c NoInputNoOutput
-Restart=always
-RestartSec=2
-TimeoutStopSec=3
-KillMode=process
-
-[Install]
-WantedBy=multi-user.target
-BTEOF
-
-# =========================================================================
-# 4. Linger + reload + enable
-# =========================================================================
+echo ">>> Abilitazione servizi utente PipeWire e WirePlumber..."
 loginctl enable-linger "$REAL_USER" || true
+
+sudo -u "$REAL_USER" XDG_RUNTIME_DIR="/run/user/$REAL_UID" systemctl --user daemon-reload 2>/dev/null || true
+sudo -u "$REAL_USER" XDG_RUNTIME_DIR="/run/user/$REAL_UID" systemctl --user enable --now pipewire pipewire-pulse wireplumber 2>/dev/null || true
+
 systemctl daemon-reload
 systemctl enable infotainment.service
 systemctl enable bt-auto-pair.service
+
+# Riavvia Bluetooth e agent
+systemctl restart bluetooth
+systemctl restart bt-auto-pair.service
+sudo -u "$REAL_USER" XDG_RUNTIME_DIR="/run/user/$REAL_UID" systemctl --user restart pipewire pipewire-pulse wireplumber 2>/dev/null || true
 
 echo ""
 echo "=========================================="
@@ -139,7 +194,7 @@ echo "  Configurazione completata!"
 echo "=========================================="
 echo "  Display:      FKMS + 1024x600 hdmi_cvt"
 echo "  Infotainment: linuxfb:/dev/fb0"
-echo "  BT Agent:     timeout 3s"
-echo ""
-echo "  Esegui: sudo reboot"
+echo "  Bluetooth:    Car Audio (0x200420) + Dual Mode + libspa-0.2-bluetooth"
+echo "  BT Agent:     NoInputNoOutput + btmgmt io-cap 3"
+echo "  Wi-Fi:        Rescan attivo supportato"
 echo "=========================================="
