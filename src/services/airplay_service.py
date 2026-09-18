@@ -419,12 +419,10 @@ class AirPlayService:
 
     def _handle_touch_tap(self) -> None:
         """
-        Single tap during active mirroring terminates stream and restores UI.
+        Single tap detected on the touchscreen during AirPlay mirroring.
+        Notifies UI to display the floating exit 'X' button without terminating the stream.
         """
-        if self._is_streaming:
-            logger.info("Touch tap detected on car screen during AirPlay stream -> Exiting stream and restoring UI")
-            threading.Thread(target=self.stop_current_stream, daemon=True).start()
-
+        logger.info("Touch tap detected on car screen during AirPlay stream -> Showing exit button")
         if self._on_touch:
             try:
                 self._on_touch()

@@ -548,7 +548,7 @@ Item {
                 }
 
                 Text {
-                    text: "Durante la duplicazione schermo, tocca lo schermo o tieni premuto per 5 secondi per forzare l'uscita immediata."
+                    text: "Durante la duplicazione schermo, tocca lo schermo per mostrare la X in alto a destra per uscire, oppure tieni premuto per 5 secondi."
                     color: theme.textSecondary
                     font.pixelSize: 12
                     Layout.fillWidth: true

@@ -193,7 +193,7 @@ class InfotainmentBackend(QObject):
         self._airplay_status_message: str = "Pronto per l'avvio" if self._airplay_available else "UxPlay non installato"
         self._airplay_show_exit_popup: bool = False
         self._airplay_popup_timer = QTimer(self)
-        self._airplay_popup_timer.setInterval(4000)
+        self._airplay_popup_timer.setInterval(5000)
         self._airplay_popup_timer.setSingleShot(True)
         self._airplay_popup_timer.timeout.connect(self._on_airplay_popup_timeout)
         atexit.register(self._airplay_service.stop_server)
@@ -2026,10 +2026,10 @@ class InfotainmentBackend(QObject):
 
     @pyqtSlot()
     def triggerAirPlayTouch(self) -> None:
-        """Displays the top-right exit popup during streaming with a 4s auto-hide countdown."""
+        """Displays the top-right exit popup during streaming with a 5s auto-hide countdown."""
         self._airplay_show_exit_popup = True
         self.airplayExitPopupChanged.emit(True)
-        self._airplay_popup_timer.start()
+        self._airplay_popup_timer.start(5000)
 
     @pyqtSlot()
     def hideAirPlayExitPopup(self) -> None:

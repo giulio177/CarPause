@@ -120,20 +120,32 @@ ApplicationWindow {
     }
 
     // ========================================================================
-    // AIRPLAY STREAMING OVERLAYS (Touch interceptor & floating exit button)
+    // AIRPLAY STREAMING OVERLAYS (Black background, touch interceptor, X button)
     // ========================================================================
+    // 1. Pure solid black background during streaming so the underlying app never shows through
+    Rectangle {
+        id: airplayBlackout
+        anchors.fill: parent
+        color: "#000000"
+        visible: backend.airplayStreaming
+        z: 5000
+    }
+
+    // 2. Fullscreen touch catcher: tapping anywhere on the screen reveals the X exit button
     MouseArea {
         id: airplayTouchCatcher
         anchors.fill: parent
         z: 9998
         visible: backend.airplayStreaming
         onClicked: (mouse) => {
-            backend.stopAirPlayStream();
+            backend.triggerAirPlayTouch();
         }
     }
 
+    // 3. Floating top-right exit button with 'X'
     AirPlayExitOverlay {
         id: airPlayExitOverlay
+        z: 10000
     }
 
     // ========================================================================
