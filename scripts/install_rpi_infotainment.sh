@@ -338,6 +338,66 @@ systemctl enable infotainment.service
 echo "Servizio infotainment.service abilitato per l'avvio automatico al boot."
 echo
 
+# Configurazione Script & Servizio Loopback Audio Bluetooth
+mkdir -p "$REAL_HOME/.local/bin" "$REAL_HOME/.config/systemd/user"
+cat >"$REAL_HOME/.local/bin/bt-loopback.sh" <<'LPEOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+find_sink() {
+    TARGET_SINK=$(pactl list sinks short 2>/dev/null | grep -E "analog-stereo|Headphones|bcm2835|alsa_output" | cut -f2 | head -n1 || true)
+    if [[ -z "$TARGET_SINK" ]]; then
+        TARGET_SINK="@DEFAULT_SINK@"
+    fi
+    echo "$TARGET_SINK"
+}
+
+try_connect() {
+    SINK=$(find_sink)
+    pactl list sources short 2>/dev/null | grep -E "bluez_input|bluez_source" | while read -r line; do
+        SRC_ID=$(echo "$line" | cut -f2)
+        if ! pactl list modules short 2>/dev/null | grep -q "source=$SRC_ID sink=$SINK"; then
+            echo "Loopback Bluetooth: $SRC_ID -> $SINK"
+            pactl load-module module-loopback source="$SRC_ID" sink="$SINK" latency_msec=100 2>/dev/null || true
+        fi
+    done
+}
+
+try_connect || true
+
+pactl subscribe 2>/dev/null | while read -r line; do
+    if echo "$line" | grep -qE "new|change"; then
+        if echo "$line" | grep -qE "source|card"; then
+            sleep 1
+            try_connect || true
+        fi
+    fi
+done
+LPEOF
+
+chmod +x "$REAL_HOME/.local/bin/bt-loopback.sh"
+chown "$REAL_USER:$REAL_USER" "$REAL_HOME/.local/bin/bt-loopback.sh"
+
+cat >"$REAL_HOME/.config/systemd/user/bt-loopback.service" <<EOF
+[Unit]
+Description=Automotive Bluetooth Loopback Audio
+After=pipewire.service pipewire-pulse.service wireplumber.service sound.target
+Wants=pipewire-pulse.service
+
+[Service]
+Type=simple
+ExecStart=$REAL_HOME/.local/bin/bt-loopback.sh
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=default.target
+EOF
+
+chown "$REAL_USER:$REAL_USER" "$REAL_HOME/.config/systemd/user/bt-loopback.service"
+sudo -u "$REAL_USER" XDG_RUNTIME_DIR="/run/user/$REAL_UID" systemctl --user daemon-reload 2>/dev/null || true
+sudo -u "$REAL_USER" XDG_RUNTIME_DIR="/run/user/$REAL_UID" systemctl --user enable bt-loopback.service 2>/dev/null || true
+
 ###############################################################################
 # 11. Ottimizzazione Audio & Volume
 ###############################################################################
