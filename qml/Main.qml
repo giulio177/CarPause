@@ -70,14 +70,19 @@ ApplicationWindow {
             Layout.fillWidth: true
             Layout.fillHeight: true
             currentIndex: {
-                if (backend.currentView === "media") return 1;
-                if (backend.currentView === "airplay") return 2;
-                if (backend.currentView === "settings") return 3;
+                if (backend.currentView === "maps") return 1;
+                if (backend.currentView === "media") return 2;
+                if (backend.currentView === "airplay") return 3;
+                if (backend.currentView === "settings") return 4;
                 return 0; // dashboard
             }
 
             DashboardView {
                 id: dashboardView
+            }
+
+            MapView {
+                id: mapView
             }
 
             MediaView {

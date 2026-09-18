@@ -130,6 +130,7 @@ Rectangle {
             }
 
             NavTab { viewId: "dashboard"; iconName: "speed";       label: "DASH" }
+            NavTab { viewId: "maps";      iconName: "explore";     label: "MAPPE" }
             NavTab { viewId: "media";     iconName: "music_note";  label: "MEDIA" }
             NavTab { viewId: "airplay";   iconName: "airplay";     label: "AIRPLAY" }
             NavTab { viewId: "settings";  iconName: "settings";    label: "SETTING" }

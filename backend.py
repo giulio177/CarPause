@@ -26,6 +26,7 @@ from src.services.local_music_service import LocalMusicService
 from src.services.obd_service import OBDService
 from src.services.log_service import LogService
 from src.services.airplay_service import AirPlayService
+from src.services.map_service import MapService
 
 logger = logging.getLogger("InfotainmentBackend")
 
@@ -70,6 +71,12 @@ class InfotainmentBackend(QObject):
     airplayStreamingChanged = pyqtSignal(bool)
     airplayExitPopupChanged = pyqtSignal(bool)
     updateStateChanged = pyqtSignal()
+    mapCenterChanged = pyqtSignal()
+    mapZoomChanged = pyqtSignal()
+    mapThemeChanged = pyqtSignal()
+    mapSearchResultsChanged = pyqtSignal()
+    mapSearchingChanged = pyqtSignal(bool)
+    mapBookmarksChanged = pyqtSignal()
 
     def __init__(self, parent: Optional[QObject] = None):
         super().__init__(parent)
@@ -202,12 +209,28 @@ class InfotainmentBackend(QObject):
         self._airplay_popup_timer.timeout.connect(self._on_airplay_popup_timeout)
         atexit.register(self._airplay_service.stop_server)
 
-        # 10. Software Update State (Git pull via scripts/update_infotainment.sh)
+        # 10. OpenStreetMap State (local tile cache proxy & Nominatim search)
+        self._map_service = MapService.get_instance()
+        try:
+            self._map_center_lat: float = float(self._settings.value("map/center_lat", 41.8933))
+            self._map_center_lon: float = float(self._settings.value("map/center_lon", 12.4829))
+            self._map_zoom: int = int(self._settings.value("map/zoom", 14))
+        except Exception:
+            self._map_center_lat = 41.8933
+            self._map_center_lon = 12.4829
+            self._map_zoom = 14
+        self._map_theme: str = str(self._settings.value("map/theme", "dark"))
+        self._map_search_results: List[Dict[str, Any]] = []
+        self._map_searching: bool = False
+        self._map_bookmarks: List[Dict[str, Any]] = self._map_service.get_bookmarks()
+        atexit.register(self._map_service.stop_tile_proxy)
+
+        # 11. Software Update State (Git pull via scripts/update_infotainment.sh)
         self._update_running: bool = False
         self._update_status_message: str = ""
         self._update_success: bool = False
 
-        # 11. UI Navigation View
+        # 12. UI Navigation View
         self._current_view: str = "dashboard"
 
         # Debounce timer for volume slider interaction
@@ -1329,6 +1352,39 @@ class InfotainmentBackend(QObject):
     def currentView(self) -> str:
         return self._current_view
 
+    # OpenStreetMap (OSM) Properties
+    @pyqtProperty(float, notify=mapCenterChanged)
+    def mapCenterLat(self) -> float:
+        return self._map_center_lat
+
+    @pyqtProperty(float, notify=mapCenterChanged)
+    def mapCenterLon(self) -> float:
+        return self._map_center_lon
+
+    @pyqtProperty(int, notify=mapZoomChanged)
+    def mapZoom(self) -> int:
+        return self._map_zoom
+
+    @pyqtProperty(str, notify=mapThemeChanged)
+    def mapTheme(self) -> str:
+        return self._map_theme
+
+    @pyqtProperty(str, notify=mapThemeChanged)
+    def mapTileBaseUrl(self) -> str:
+        return f"{self._map_service.proxy_url}/tiles"
+
+    @pyqtProperty("QVariantList", notify=mapSearchResultsChanged)
+    def mapSearchResults(self) -> list:
+        return self._map_search_results
+
+    @pyqtProperty(bool, notify=mapSearchingChanged)
+    def mapSearching(self) -> bool:
+        return self._map_searching
+
+    @pyqtProperty("QVariantList", notify=mapBookmarksChanged)
+    def mapBookmarks(self) -> list:
+        return self._map_bookmarks
+
     # -------------------------------------------------------------------------
     # QML Slots
     # -------------------------------------------------------------------------
@@ -2159,3 +2215,93 @@ class InfotainmentBackend(QObject):
                 QTimer.singleShot(2000, self.restartApp)
 
         self._async_runner.run_async(_update_task, on_result=_on_finish)
+
+    # -------------------------------------------------------------------------
+    # OpenStreetMap (OSM) Navigation Slots
+    # -------------------------------------------------------------------------
+
+    @pyqtSlot(float, float)
+    def setMapCenter(self, lat: float, lon: float) -> None:
+        """Sets the center coordinates of the map and persists to settings."""
+        self._map_center_lat = max(-85.0, min(85.0, lat))
+        self._map_center_lon = max(-180.0, min(180.0, lon))
+        self._settings.setValue("map/center_lat", self._map_center_lat)
+        self._settings.setValue("map/center_lon", self._map_center_lon)
+        self.mapCenterChanged.emit()
+
+    @pyqtSlot(float, float)
+    def panMap(self, delta_lat: float, delta_lon: float) -> None:
+        """Pans the map center by the given geographic deltas."""
+        self.setMapCenter(self._map_center_lat + delta_lat, self._map_center_lon + delta_lon)
+
+    @pyqtSlot(int)
+    def setMapZoom(self, zoom: int) -> None:
+        """Sets the zoom level bounded between 3 and 18."""
+        clamped = max(3, min(18, zoom))
+        if clamped != self._map_zoom:
+            self._map_zoom = clamped
+            self._settings.setValue("map/zoom", self._map_zoom)
+            self.mapZoomChanged.emit()
+
+    @pyqtSlot()
+    def zoomIn(self) -> None:
+        self.setMapZoom(self._map_zoom + 1)
+
+    @pyqtSlot()
+    def zoomOut(self) -> None:
+        self.setMapZoom(self._map_zoom - 1)
+
+    @pyqtSlot(str)
+    def setMapTheme(self, theme: str) -> None:
+        if theme in ("dark", "osm", "voyager") and theme != self._map_theme:
+            self._map_theme = theme
+            self._settings.setValue("map/theme", self._map_theme)
+            self.mapThemeChanged.emit()
+
+    @pyqtSlot()
+    def cycleMapTheme(self) -> None:
+        themes = ["dark", "osm", "voyager"]
+        curr_idx = themes.index(self._map_theme) if self._map_theme in themes else 0
+        self.setMapTheme(themes[(curr_idx + 1) % len(themes)])
+
+    @pyqtSlot(str)
+    def searchMap(self, query: str) -> None:
+        """Asynchronously searches locations/POIs via OpenStreetMap Nominatim."""
+        query_clean = query.strip()
+        if not query_clean:
+            self._map_search_results = []
+            self.mapSearchResultsChanged.emit()
+            return
+
+        self._map_searching = True
+        self.mapSearchingChanged.emit(True)
+
+        def _on_search_done(results):
+            self._map_searching = False
+            self._map_search_results = results or []
+            self.mapSearchingChanged.emit(False)
+            self.mapSearchResultsChanged.emit()
+
+        self._async_runner.run_async(
+            self._map_service.search_places,
+            query_clean,
+            on_result=_on_search_done,
+            on_error=lambda err: _on_search_done([])
+        )
+
+    @pyqtSlot()
+    def clearMapSearch(self) -> None:
+        self._map_search_results = []
+        self.mapSearchResultsChanged.emit()
+
+    @pyqtSlot(str, float, float)
+    def addMapBookmark(self, name: str, lat: float, lon: float) -> None:
+        self._map_service.add_bookmark(name, lat, lon)
+        self._map_bookmarks = self._map_service.get_bookmarks()
+        self.mapBookmarksChanged.emit()
+
+    @pyqtSlot(str)
+    def removeMapBookmark(self, name: str) -> None:
+        self._map_service.remove_bookmark(name)
+        self._map_bookmarks = self._map_service.get_bookmarks()
+        self.mapBookmarksChanged.emit()
