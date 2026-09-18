@@ -24,6 +24,7 @@ logger = logging.getLogger("MapService")
 # Tile Server Providers
 TILE_PROVIDERS: Dict[str, str] = {
     "dark": "https://basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png",
+    "dark_clean": "https://basemaps.cartocdn.com/rastertiles/dark_nolabels/{z}/{x}/{y}.png",
     "osm": "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
     "voyager": "https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
 }
@@ -250,6 +251,38 @@ class MapService:
         except Exception as exc:
             logger.warning("Nominatim place search error for '%s': %s", query_clean, exc)
             return []
+
+    # -------------------------------------------------------------------------
+    # Geolocation / Automatic Positioning
+    # -------------------------------------------------------------------------
+
+    @staticmethod
+    def get_ip_location() -> Optional[Dict[str, Any]]:
+        """
+        Determines current geographic position via IP Geolocation when connected
+        to the smartphone's Wi-Fi hotspot or local network.
+        Returns coordinates and locality name without fabricating data.
+        """
+        try:
+            req = urllib.request.Request(
+                "http://ip-api.com/json/",
+                headers={"User-Agent": "MitoInfotainment/1.0 (RaspberryPi; Automotive)"}
+            )
+            with urllib.request.urlopen(req, timeout=3.5) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                if data.get("status") == "success":
+                    city = data.get("city", "Posizione Rilevata")
+                    region = data.get("regionName", "")
+                    label = f"{city}, {region}" if region else city
+                    logger.info("IP Geolocation successful: %s (%f, %f)", label, data["lat"], data["lon"])
+                    return {
+                        "name": label,
+                        "lat": float(data["lat"]),
+                        "lon": float(data["lon"]),
+                    }
+        except Exception as exc:
+            logger.debug("IP Geolocation lookup not available: %s", exc)
+        return None
 
     # -------------------------------------------------------------------------
     # Bookmarks / Favorites Storage

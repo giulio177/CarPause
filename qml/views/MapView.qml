@@ -144,7 +144,7 @@ Rectangle {
                     width: destText.contentWidth + 18
                     radius: 13
                     color: "#D91438"
-                    border.color: "#FFFFFF"
+                    border.color: "#800A1D"
                     border.width: 1.5
                     anchors.horizontalCenter: parent.horizontalCenter
 
@@ -198,7 +198,7 @@ Rectangle {
                 height: 16
                 radius: 8
                 color: theme.accentCyan
-                border.color: "#FFFFFF"
+                border.color: "#080C14"
                 border.width: 2.5
             }
 
@@ -272,8 +272,8 @@ Rectangle {
             width: Math.min(520, parent.width - 28)
             height: 44
             radius: 22
-            color: Qt.rgba(14, 20, 32, 0.88)
-            border.color: mapRoot.searchOpen ? theme.accentCyan : theme.surfaceBorder
+            color: "#121824"
+            border.color: mapRoot.searchOpen ? theme.accentCyan : "#222D3E"
             border.width: 1.5
 
             RowLayout {
@@ -285,12 +285,12 @@ Rectangle {
                 MaterialIcon {
                     name: "search"
                     size: 22
-                    iconColor: mapRoot.searchOpen ? theme.accentCyan : theme.textSecondary
+                    iconColor: theme.accentCyan
                 }
 
                 Text {
                     text: mapRoot.hasDestination ? mapRoot.destinationName : "Cerca destinazione o città..."
-                    color: mapRoot.hasDestination ? theme.textPrimary : theme.textMuted
+                    color: mapRoot.hasDestination ? "#E2E8F0" : theme.textMuted
                     font.pixelSize: 14
                     font.bold: mapRoot.hasDestination
                     elide: Text.ElideRight
@@ -303,7 +303,9 @@ Rectangle {
                     width: 28
                     height: 28
                     radius: 14
-                    color: Qt.rgba(255, 255, 255, 0.1)
+                    color: "#1E2738"
+                    border.color: "#2C394F"
+                    border.width: 1
 
                     MaterialIcon {
                         anchors.centerIn: parent
@@ -340,11 +342,12 @@ Rectangle {
                 model: backend.mapBookmarks
 
                 delegate: Rectangle {
+                    id: chipDelegate
                     height: 30
                     width: chipRow.implicitWidth + 20
                     radius: 15
-                    color: Qt.rgba(15, 22, 35, 0.82)
-                    border.color: theme.surfaceBorder
+                    color: chipTap.pressed ? "#1E283C" : "#121824"
+                    border.color: "#222D3E"
                     border.width: 1
 
                     Row {
@@ -361,7 +364,7 @@ Rectangle {
 
                         Text {
                             text: modelData.name
-                            color: theme.textPrimary
+                            color: "#CBD5E1"
                             font.pixelSize: 12
                             font.bold: true
                             anchors.verticalCenter: parent.verticalCenter
@@ -369,6 +372,7 @@ Rectangle {
                     }
 
                     TapHandler {
+                        id: chipTap
                         margin: 6
                         onTapped: {
                             backend.setMapCenter(modelData.lat, modelData.lon);
@@ -399,15 +403,15 @@ Rectangle {
             width: 48
             height: 48
             radius: 24
-            color: zoomInTap.pressed ? "#253248" : Qt.rgba(15, 22, 35, 0.90)
-            border.color: theme.surfaceBorder
+            color: zoomInTap.pressed ? "#1E283C" : "#121824"
+            border.color: "#222D3E"
             border.width: 1.5
 
             MaterialIcon {
                 anchors.centerIn: parent
                 name: "add"
                 size: 24
-                iconColor: theme.textPrimary
+                iconColor: theme.accentCyan
             }
 
             TapHandler {
@@ -422,8 +426,8 @@ Rectangle {
             width: 48
             height: 26
             radius: 13
-            color: Qt.rgba(10, 15, 24, 0.90)
-            border.color: theme.surfaceBorder
+            color: "#0E1420"
+            border.color: "#1E2638"
             border.width: 1
 
             Text {
@@ -440,15 +444,15 @@ Rectangle {
             width: 48
             height: 48
             radius: 24
-            color: zoomOutTap.pressed ? "#253248" : Qt.rgba(15, 22, 35, 0.90)
-            border.color: theme.surfaceBorder
+            color: zoomOutTap.pressed ? "#1E283C" : "#121824"
+            border.color: "#222D3E"
             border.width: 1.5
 
             MaterialIcon {
                 anchors.centerIn: parent
                 name: "remove"
                 size: 24
-                iconColor: theme.textPrimary
+                iconColor: theme.accentCyan
             }
 
             TapHandler {
@@ -458,13 +462,13 @@ Rectangle {
             }
         }
 
-        // Map Style / Theme Switcher (Dark -> OSM -> Voyager)
+        // Map Style / Theme Switcher (Dark Clean -> Dark Matter -> Voyager -> OSM)
         Rectangle {
             width: 48
             height: 48
             radius: 24
-            color: themeTap.pressed ? "#253248" : Qt.rgba(15, 22, 35, 0.90)
-            border.color: theme.surfaceBorder
+            color: themeTap.pressed ? "#1E283C" : "#121824"
+            border.color: "#222D3E"
             border.width: 1.5
 
             MaterialIcon {
@@ -481,12 +485,12 @@ Rectangle {
             }
         }
 
-        // Recenter Button
+        // Recenter Button (Locates vehicle via Hotspot / GPS)
         Rectangle {
             width: 48
             height: 48
             radius: 24
-            color: recenterTap.pressed ? "#253248" : Qt.rgba(15, 22, 35, 0.90)
+            color: recenterTap.pressed ? "#1E283C" : "#121824"
             border.color: theme.accentCyan
             border.width: 1.5
 
@@ -501,8 +505,7 @@ Rectangle {
                 id: recenterTap
                 margin: 8
                 onTapped: {
-                    // Recenter on vehicle / default home position
-                    backend.setMapCenter(41.8933, 12.4829);
+                    backend.locateVehicle();
                 }
             }
         }
@@ -523,8 +526,8 @@ Rectangle {
             height: 38
             width: speedCol.implicitWidth + 24
             radius: 19
-            color: Qt.rgba(10, 15, 25, 0.88)
-            border.color: backend.obdConnected ? theme.accentGreen : theme.surfaceBorder
+            color: "#121824"
+            border.color: backend.obdConnected ? theme.accentGreen : "#222D3E"
             border.width: 1.5
 
             Row {
@@ -554,7 +557,9 @@ Rectangle {
             height: 28
             width: attrRow.implicitWidth + 16
             radius: 14
-            color: Qt.rgba(10, 15, 25, 0.70)
+            color: "#0E1420"
+            border.color: "#1E2638"
+            border.width: 1
             anchors.verticalCenter: parent.verticalCenter
 
             Row {
@@ -564,9 +569,10 @@ Rectangle {
 
                 Text {
                     text: {
-                        if (mapRoot.currentTheme === "dark") return "CARTO Dark (OSM)";
+                        if (mapRoot.currentTheme === "dark_clean") return "CARTO Dark (Pulita)";
+                        if (mapRoot.currentTheme === "dark") return "CARTO Dark (Etichette)";
                         if (mapRoot.currentTheme === "voyager") return "CARTO Voyager";
-                        return "OpenStreetMap";
+                        return "OpenStreetMap Standard";
                     }
                     color: Qt.rgba(1, 1, 1, 0.45)
                     font.pixelSize: 10
@@ -583,7 +589,7 @@ Rectangle {
     Rectangle {
         id: searchDrawer
         anchors.fill: parent
-        color: Qt.rgba(8, 12, 20, 0.95)
+        color: "#0B0F17"
         visible: mapRoot.searchOpen
         z: 200
 
@@ -601,7 +607,7 @@ Rectangle {
                     Layout.fillWidth: true
                     height: 48
                     radius: theme.radiusMedium
-                    color: theme.surfaceElevated
+                    color: "#141A24"
                     border.color: theme.accentCyan
                     border.width: 1.5
 
@@ -646,13 +652,15 @@ Rectangle {
                             width: 34
                             height: 34
                             radius: 17
-                            color: theme.accentCyan
+                            color: "#1E2738"
+                            border.color: theme.accentCyan
+                            border.width: 1
 
                             MaterialIcon {
                                 anchors.centerIn: parent
                                 name: backend.mapSearching ? "sync" : "arrow_forward"
                                 size: 18
-                                iconColor: "#000000"
+                                iconColor: theme.accentCyan
                                 RotationAnimation on rotation {
                                     running: backend.mapSearching
                                     loops: Animation.Infinite
@@ -676,15 +684,15 @@ Rectangle {
                     width: 48
                     height: 48
                     radius: theme.radiusMedium
-                    color: theme.surfaceElevated
-                    border.color: theme.surfaceBorder
+                    color: "#141A24"
+                    border.color: "#222D3E"
                     border.width: 1
 
                     MaterialIcon {
                         anchors.centerIn: parent
                         name: "close"
                         size: 24
-                        iconColor: theme.textPrimary
+                        iconColor: theme.accentCyan
                     }
 
                     TapHandler {
@@ -709,8 +717,8 @@ Rectangle {
                     width: resultsList.width
                     height: 52
                     radius: theme.radiusMedium
-                    color: resultTap.pressed ? theme.surfaceBorder : theme.surfaceElevated
-                    border.color: theme.surfaceBorder
+                    color: resultTap.pressed ? "#1E283C" : "#141A24"
+                    border.color: "#222D3E"
                     border.width: 1
 
                     RowLayout {

@@ -219,7 +219,8 @@ class InfotainmentBackend(QObject):
             self._map_center_lat = 41.8933
             self._map_center_lon = 12.4829
             self._map_zoom = 14
-        self._map_theme: str = str(self._settings.value("map/theme", "dark"))
+        saved_theme = str(self._settings.value("map/theme", "dark_clean"))
+        self._map_theme: str = saved_theme if saved_theme in ("dark", "dark_clean", "voyager") else "dark_clean"
         self._map_search_results: List[Dict[str, Any]] = []
         self._map_searching: bool = False
         self._map_bookmarks: List[Dict[str, Any]] = self._map_service.get_bookmarks()
@@ -1483,7 +1484,9 @@ class InfotainmentBackend(QObject):
         if view_name != self._current_view:
             self._current_view = view_name
             self.currentViewChanged.emit(self._current_view)
-            if view_name == "settings":
+            if view_name == "maps":
+                self.locateVehicle()
+            elif view_name == "settings":
                 self._sync_logs_to_qml()
             elif view_name == "airplay" and self._airplay_available and not self._airplay_running:
                 self.startAirPlay()
@@ -2253,16 +2256,32 @@ class InfotainmentBackend(QObject):
 
     @pyqtSlot(str)
     def setMapTheme(self, theme: str) -> None:
-        if theme in ("dark", "osm", "voyager") and theme != self._map_theme:
+        if theme in ("dark", "dark_clean", "osm", "voyager") and theme != self._map_theme:
             self._map_theme = theme
             self._settings.setValue("map/theme", self._map_theme)
             self.mapThemeChanged.emit()
 
     @pyqtSlot()
     def cycleMapTheme(self) -> None:
-        themes = ["dark", "osm", "voyager"]
+        themes = ["dark_clean", "dark", "voyager", "osm"]
         curr_idx = themes.index(self._map_theme) if self._map_theme in themes else 0
         self.setMapTheme(themes[(curr_idx + 1) % len(themes)])
+
+    @pyqtSlot()
+    def locateVehicle(self) -> None:
+        """
+        Determines current position using IP Geolocation when connected to the phone's
+        Wi-Fi hotspot. Automatically centers the map on the user's real location.
+        """
+        def _locate_task():
+            return self._map_service.get_ip_location()
+
+        def _on_located(res):
+            if res and isinstance(res, dict) and "lat" in res and "lon" in res:
+                logger.info("Vehicle located at %s: lat=%f, lon=%f", res.get("name"), res["lat"], res["lon"])
+                self.setMapCenter(res["lat"], res["lon"])
+
+        self._async_runner.run_async(_locate_task, on_result=_on_located)
 
     @pyqtSlot(str)
     def searchMap(self, query: str) -> None:
