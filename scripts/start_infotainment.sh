@@ -46,7 +46,6 @@ else
     # Headless kiosk: direct Linux framebuffer (works with FKMS + hdmi_cvt)
     export QT_QPA_PLATFORM="linuxfb:fb=/dev/fb0:size=1024x600"
     export QT_QPA_GENERIC_PLUGINS="evdevtouch:/dev/input/event0"
-    export QT_QPA_FB_DRM=1
 fi
 
 # -----------------------------------------------------------------------------
