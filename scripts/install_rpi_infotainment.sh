@@ -61,7 +61,7 @@ apt install -y \
     git python3-venv python3-pip python3-dev build-essential pkg-config cmake \
     python3-dbus python3-gi gir1.2-glib-2.0 dbus-user-session libglib2.0-dev libdbus-1-dev \
     network-manager \
-    pipewire pipewire-pulse wireplumber pipewire-audio libspa-0.2-bluetooth alsa-utils libasound2-dev \
+    pipewire pipewire-pulse wireplumber pipewire-audio libspa-0.2-bluetooth pulseaudio-utils alsa-utils libasound2-dev \
     bluez bluez-tools pi-bluetooth bluez-firmware \
     ffmpeg libavcodec-extra rfkill \
     avahi-daemon avahi-utils libavahi-compat-libdnssd-dev libssl-dev libplist-dev \
@@ -344,10 +344,15 @@ cat >"$REAL_HOME/.local/bin/bt-loopback.sh" <<'LPEOF'
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Assicura puntamento corretto al socket Pulse di PipeWire
+if [[ -z "${PULSE_SERVER:-}" ]]; then
+    export PULSE_SERVER="unix:${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/pulse/native"
+fi
+
 find_sink() {
     TARGET_SINK=$(pactl list sinks short 2>/dev/null | grep -E "analog-stereo|Headphones|bcm2835|alsa_output" | cut -f2 | head -n1 || true)
     if [[ -z "$TARGET_SINK" ]]; then
-        TARGET_SINK="@DEFAULT_SINK@"
+        TARGET_SINK=$(pactl get-default-sink 2>/dev/null || echo "@DEFAULT_SINK@")
     fi
     echo "$TARGET_SINK"
 }
@@ -386,6 +391,8 @@ Wants=pipewire-pulse.service
 
 [Service]
 Type=simple
+Environment=PULSE_SERVER=unix:%t/pulse/native
+Environment=XDG_RUNTIME_DIR=%t
 ExecStart=$REAL_HOME/.local/bin/bt-loopback.sh
 Restart=always
 RestartSec=3

@@ -76,10 +76,10 @@ rfkill unblock bluetooth 2>/dev/null || true
 # Aggiungi utente a gruppi necessari (incluso bluetooth per permessi D-Bus)
 usermod -aG bluetooth,audio,video,input "$REAL_USER" || true
 
-# Installa modulo Bluetooth per PipeWire e pacchetto pipewire-audio
-if ! dpkg -l | grep -q "libspa-0.2-bluetooth"; then
-    echo "  Installazione libspa-0.2-bluetooth per audio smartphone..."
-    apt-get update -qq && apt-get install -y libspa-0.2-bluetooth pipewire-audio || true
+# Installa modulo Bluetooth per PipeWire, pulseaudio-utils (pactl) e pacchetto pipewire-audio
+if ! command -v pactl &>/dev/null || ! dpkg -l | grep -q "libspa-0.2-bluetooth"; then
+    echo "  Installazione pulseaudio-utils (pactl), libspa-0.2-bluetooth e pipewire-audio..."
+    apt-get update -qq && apt-get install -y pulseaudio-utils libspa-0.2-bluetooth pipewire-audio || true
 fi
 
 # Configurazione /etc/bluetooth/main.conf
@@ -202,10 +202,15 @@ cat >"$REAL_HOME/.local/bin/bt-loopback.sh" <<'LPEOF'
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Assicura puntamento corretto al socket Pulse di PipeWire
+if [[ -z "${PULSE_SERVER:-}" ]]; then
+    export PULSE_SERVER="unix:${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/pulse/native"
+fi
+
 find_sink() {
     TARGET_SINK=$(pactl list sinks short 2>/dev/null | grep -E "analog-stereo|Headphones|bcm2835|alsa_output" | cut -f2 | head -n1 || true)
     if [[ -z "$TARGET_SINK" ]]; then
-        TARGET_SINK="@DEFAULT_SINK@"
+        TARGET_SINK=$(pactl get-default-sink 2>/dev/null || echo "@DEFAULT_SINK@")
     fi
     echo "$TARGET_SINK"
 }
@@ -244,6 +249,8 @@ Wants=pipewire-pulse.service
 
 [Service]
 Type=simple
+Environment=PULSE_SERVER=unix:%t/pulse/native
+Environment=XDG_RUNTIME_DIR=%t
 ExecStart=$REAL_HOME/.local/bin/bt-loopback.sh
 Restart=always
 RestartSec=3
