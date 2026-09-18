@@ -108,12 +108,18 @@ echo
 ###############################################################################
 echo ">>> [2/8] Configurazione parametri di boot ($CMDLINE_FILE e $CONFIG_FILE)..."
 
-# 5.1 cmdline.txt: Avvio silenzioso stile automotive senza log di console
+# 5.1 cmdline.txt: Avvio silenzioso stile automotive + risoluzione KMS forzata
 if [[ -f "$CMDLINE_FILE" ]]; then
+    # Avvio silenzioso senza log di console
     EXTRA_CMDLINE="logo.nologo quiet loglevel=3 vt.global_cursor_default=0"
     if ! grep -q "logo.nologo" "$CMDLINE_FILE"; then
         sed -i "1s|\$| ${EXTRA_CMDLINE}|" "$CMDLINE_FILE"
         echo "Aggiunte opzioni quiet/automotive a $CMDLINE_FILE."
+    fi
+    # Forza risoluzione 1024x600 tramite DRM/KMS video= (necessario con vc4-kms-v3d)
+    if ! grep -q "video=HDMI-A-1:1024x600" "$CMDLINE_FILE"; then
+        sed -i "1s|\$| video=HDMI-A-1:1024x600@60D|" "$CMDLINE_FILE"
+        echo "Aggiunta risoluzione video=HDMI-A-1:1024x600@60D a $CMDLINE_FILE."
     fi
 fi
 
@@ -140,17 +146,14 @@ if [[ -f "$CONFIG_FILE" ]]; then
         echo 'dtparam=audio=on' >> "$CONFIG_FILE"
     fi
 
-    # Display HDMI 1024x600 a 60Hz
-    if ! grep -q "hdmi_cvt=1024 600 60 6 0 0 0" "$CONFIG_FILE"; then
-        cat >> "$CONFIG_FILE" << 'EOF'
-
-# --- RPi Automotive Display Configuration (1024x600 @ 60Hz) ---
-hdmi_force_hotplug=1
-hdmi_group=2
-hdmi_mode=87
-hdmi_cvt=1024 600 60 6 0 0 0
-EOF
-        echo "Configurata risoluzione HDMI 1024x600 in $CONFIG_FILE."
+    # Display HDMI: hdmi_force_hotplug per garantire uscita video anche senza monitor al boot.
+    # NOTA: Con vc4-kms-v3d (Full KMS), hdmi_group/hdmi_mode/hdmi_cvt sono IGNORATI.
+    # La risoluzione è forzata via kernel cmdline (video=HDMI-A-1:1024x600@60D) in cmdline.txt.
+    if ! grep -q "^hdmi_force_hotplug=1" "$CONFIG_FILE"; then
+        echo "" >> "$CONFIG_FILE"
+        echo "# --- RPi Automotive Display ---" >> "$CONFIG_FILE"
+        echo "hdmi_force_hotplug=1" >> "$CONFIG_FILE"
+        echo "Aggiunto hdmi_force_hotplug=1 in $CONFIG_FILE."
     fi
 
     # Automotive Boot Speed & Poweroff GPIO 17
@@ -209,6 +212,8 @@ Type=simple
 ExecStart=/usr/bin/bt-agent -c NoInputNoOutput
 Restart=always
 RestartSec=2
+TimeoutStopSec=3
+KillMode=process
 
 [Install]
 WantedBy=multi-user.target
@@ -275,7 +280,7 @@ loginctl enable-linger "$REAL_USER" || true
 cat >/etc/systemd/system/infotainment.service <<EOF
 [Unit]
 Description=Mito Automotive Infotainment (PyQt6 + QML)
-After=network.target bluetooth.service sound.target avahi-daemon.service
+After=network.target bluetooth.service sound.target avahi-daemon.service graphical.target
 Wants=bluetooth.service avahi-daemon.service
 
 [Service]
@@ -286,18 +291,24 @@ WorkingDirectory=$PROJECT_DIR
 
 Environment=PYTHONUNBUFFERED=1
 Environment=XDG_RUNTIME_DIR=/run/user/$REAL_UID
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$REAL_UID/bus
+Environment=HOME=$REAL_HOME
+
+# Attendi che il DRM/KMS sia pronto prima di avviare EGLFS
+ExecStartPre=/bin/sleep 2
 
 # Avvio tramite launcher ottimizzato
 ExecStart=$START_SCRIPT
 
 Restart=always
 RestartSec=3
+TimeoutStopSec=10
 
 StandardOutput=journal
 StandardError=journal
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=graphical.target
 EOF
 
 systemctl daemon-reload
