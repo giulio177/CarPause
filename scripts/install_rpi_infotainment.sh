@@ -70,15 +70,21 @@ apt install -y \
     gstreamer1.0-alsa gstreamer1.0-pulseaudio \
     python3-evdev
 
-# Pacchetti PyQt6, QtQuick e EGLFS KMS nativi Debian/Raspberry Pi OS
+# Cage: compositor Wayland kiosk per avvio app a schermo intero senza desktop
+apt install -y cage
+
+# Librerie Wayland necessarie per il platform plugin Qt6 wayland (PyQt6 pip bundle)
+apt install -y \
+    libwayland-client0 libwayland-cursor0 libwayland-egl1 \
+    libgbm1 libdrm2 libegl1 libgles2 libinput10 \
+    libxkbcommon0 2>/dev/null || true
+
+# Pacchetti Qt6 QML nativi dal repository di sistema (opzionali, PyQt6 pip li include)
 apt install -y \
     python3-pyqt6 python3-pyqt6.qtquick python3-pyqt6.qtmultimedia python3-pyqt6.qtdbus \
     qml6-module-qtquick qml6-module-qtquick-controls qml6-module-qtquick-layouts \
-    qml6-module-qtquick-window qml6-module-qtmultimedia \
-    libqt6eglfsdeviceintegration6 libqt6eglfskmsgbmsupport6 \
-    qt6-qpa-plugins qt6-gtk-platformtheme \
-    libgbm-dev libdrm-dev libegl1-mesa-dev 2>/dev/null || {
-    echo "Nota: Alcuni moduli Qt6 QML/EGLFS saranno gestiti direttamente dal virtualenv Python."
+    qml6-module-qtquick-window qml6-module-qtmultimedia 2>/dev/null || {
+    echo "Nota: Moduli Qt6 QML saranno gestiti dal virtualenv Python (PyQt6 pip)."
 }
 
 # Tentativo installazione pacchetto uxplay via apt
@@ -288,14 +294,21 @@ loginctl enable-linger "$REAL_USER" || true
 
 cat >/etc/systemd/system/infotainment.service <<EOF
 [Unit]
-Description=Mito Automotive Infotainment (PyQt6 + QML)
-After=network.target bluetooth.service sound.target avahi-daemon.service graphical.target
+Description=Mito Automotive Infotainment (PyQt6 + QML via Cage Wayland Kiosk)
+After=systemd-user-sessions.service network.target bluetooth.service sound.target avahi-daemon.service
 Wants=bluetooth.service avahi-daemon.service
 
 [Service]
 Type=simple
 User=$REAL_USER
-Group=$REAL_USER
+
+# TTY allocation per accesso DRM/KMS diretto da cage
+PAMName=login
+TTYPath=/dev/tty7
+StandardInput=tty-force
+UtmpIdentifier=tty7
+UtmpMode=user
+
 WorkingDirectory=$PROJECT_DIR
 
 Environment=PYTHONUNBUFFERED=1
@@ -303,11 +316,11 @@ Environment=XDG_RUNTIME_DIR=/run/user/$REAL_UID
 Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$REAL_UID/bus
 Environment=HOME=$REAL_HOME
 
-# Attendi che il DRM/KMS sia pronto prima di avviare EGLFS
+# Attendi che DRM/KMS e user session siano pronti
 ExecStartPre=/bin/sleep 2
 
-# Avvio tramite launcher ottimizzato
-ExecStart=$START_SCRIPT
+# Cage compositor Wayland kiosk -> imposta WAYLAND_DISPLAY per l'app
+ExecStart=/usr/bin/cage -s -- $START_SCRIPT
 
 Restart=always
 RestartSec=3
@@ -317,7 +330,7 @@ StandardOutput=journal
 StandardError=journal
 
 [Install]
-WantedBy=graphical.target
+WantedBy=multi-user.target
 EOF
 
 systemctl daemon-reload
