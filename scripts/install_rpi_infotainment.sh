@@ -70,15 +70,6 @@ apt install -y \
     gstreamer1.0-alsa gstreamer1.0-pulseaudio \
     python3-evdev
 
-# Cage: compositor Wayland kiosk per avvio app a schermo intero senza desktop
-apt install -y cage
-
-# Librerie Wayland necessarie per il platform plugin Qt6 wayland (PyQt6 pip bundle)
-apt install -y \
-    libwayland-client0 libwayland-cursor0 libwayland-egl1 \
-    libgbm1 libdrm2 libegl1 libgles2 libinput10 \
-    libxkbcommon0 2>/dev/null || true
-
 # Pacchetti Qt6 QML nativi dal repository di sistema (opzionali, PyQt6 pip li include)
 apt install -y \
     python3-pyqt6 python3-pyqt6.qtquick python3-pyqt6.qtmultimedia python3-pyqt6.qtdbus \
@@ -117,31 +108,28 @@ echo
 ###############################################################################
 echo ">>> [2/8] Configurazione parametri di boot ($CMDLINE_FILE e $CONFIG_FILE)..."
 
-# 5.1 cmdline.txt: Avvio silenzioso stile automotive + risoluzione KMS forzata
+# 5.1 cmdline.txt: Avvio silenzioso stile automotive
 if [[ -f "$CMDLINE_FILE" ]]; then
-    # Avvio silenzioso senza log di console
     EXTRA_CMDLINE="logo.nologo quiet loglevel=3 vt.global_cursor_default=0"
     if ! grep -q "logo.nologo" "$CMDLINE_FILE"; then
         sed -i "1s|\$| ${EXTRA_CMDLINE}|" "$CMDLINE_FILE"
         echo "Aggiunte opzioni quiet/automotive a $CMDLINE_FILE."
     fi
-    # Forza risoluzione 1024x600 tramite DRM/KMS video= (necessario con vc4-kms-v3d)
-    if ! grep -q "video=HDMI-A-1:1024x600" "$CMDLINE_FILE"; then
-        sed -i "1s|\$| video=HDMI-A-1:1024x600@60D|" "$CMDLINE_FILE"
-        echo "Aggiunta risoluzione video=HDMI-A-1:1024x600@60D a $CMDLINE_FILE."
-    fi
+    # Rimuovi eventuale video= forzato da installazioni precedenti (non serve con FKMS)
+    sed -i 's| video=HDMI-A-1:[^ ]*||g' "$CMDLINE_FILE"
 fi
 
-# 5.2 config.txt: Driver KMS 3D, Audio e Display 1024x600
+# 5.2 config.txt: Driver FKMS, Audio e Display 1024x600
 if [[ -f "$CONFIG_FILE" ]]; then
-    # Assicurati che vc4-kms-v3d (Full KMS) sia attivo per l'accelerazione GPU
-    if ! grep -q "dtoverlay=vc4-kms-v3d" "$CONFIG_FILE"; then
-        if grep -q "dtoverlay=vc4-fkms-v3d" "$CONFIG_FILE"; then
-            sed -i 's/dtoverlay=vc4-fkms-v3d/dtoverlay=vc4-kms-v3d/' "$CONFIG_FILE"
-            echo "Aggiornato driver da fkms a Full KMS (vc4-kms-v3d)."
-        else
-            echo "dtoverlay=vc4-kms-v3d" >> "$CONFIG_FILE"
-        fi
+    # Usa FKMS (Fake KMS) - permette hdmi_group/hdmi_mode/hdmi_cvt per forzare la risoluzione
+    # Full KMS (vc4-kms-v3d) ignora queste direttive e causa problemi con linuxfb
+    if grep -q "dtoverlay=vc4-kms-v3d" "$CONFIG_FILE"; then
+        sed -i 's/dtoverlay=vc4-kms-v3d/dtoverlay=vc4-fkms-v3d/' "$CONFIG_FILE"
+        echo "Cambiato da Full KMS a FKMS (vc4-fkms-v3d) per compatibilità display."
+    fi
+    if ! grep -q "dtoverlay=vc4-fkms-v3d" "$CONFIG_FILE"; then
+        echo "dtoverlay=vc4-fkms-v3d" >> "$CONFIG_FILE"
+        echo "Aggiunto dtoverlay=vc4-fkms-v3d."
     fi
 
     # Rimuovi eventuale disable-bt
@@ -155,14 +143,17 @@ if [[ -f "$CONFIG_FILE" ]]; then
         echo 'dtparam=audio=on' >> "$CONFIG_FILE"
     fi
 
-    # Display HDMI: hdmi_force_hotplug per garantire uscita video anche senza monitor al boot.
-    # NOTA: Con vc4-kms-v3d (Full KMS), hdmi_group/hdmi_mode/hdmi_cvt sono IGNORATI.
-    # La risoluzione è forzata via kernel cmdline (video=HDMI-A-1:1024x600@60D) in cmdline.txt.
-    if ! grep -q "^hdmi_force_hotplug=1" "$CONFIG_FILE"; then
-        echo "" >> "$CONFIG_FILE"
-        echo "# --- RPi Automotive Display ---" >> "$CONFIG_FILE"
-        echo "hdmi_force_hotplug=1" >> "$CONFIG_FILE"
-        echo "Aggiunto hdmi_force_hotplug=1 in $CONFIG_FILE."
+    # Display HDMI 1024x600 a 60Hz (funziona con FKMS)
+    if ! grep -q "hdmi_cvt=1024 600 60 6 0 0 0" "$CONFIG_FILE"; then
+        cat >> "$CONFIG_FILE" << 'HDMIEOF'
+
+# --- RPi Automotive Display Configuration (1024x600 @ 60Hz) ---
+hdmi_force_hotplug=1
+hdmi_group=2
+hdmi_mode=87
+hdmi_cvt=1024 600 60 6 0 0 0
+HDMIEOF
+        echo "Configurata risoluzione HDMI 1024x600 in $CONFIG_FILE."
     fi
 
     # Automotive Boot Speed & Poweroff GPIO 17
@@ -294,33 +285,24 @@ loginctl enable-linger "$REAL_USER" || true
 
 cat >/etc/systemd/system/infotainment.service <<EOF
 [Unit]
-Description=Mito Automotive Infotainment (PyQt6 + QML via Cage Wayland Kiosk)
-After=systemd-user-sessions.service network.target bluetooth.service sound.target avahi-daemon.service
+Description=Mito Automotive Infotainment (PyQt6 + QML Framebuffer)
+After=network.target bluetooth.service sound.target avahi-daemon.service
 Wants=bluetooth.service avahi-daemon.service
 
 [Service]
 Type=simple
 User=$REAL_USER
-
-# TTY allocation per accesso DRM/KMS diretto da cage
-PAMName=login
-TTYPath=/dev/tty7
-StandardInput=tty-force
-UtmpIdentifier=tty7
-UtmpMode=user
-
+Group=$REAL_USER
 WorkingDirectory=$PROJECT_DIR
 
 Environment=PYTHONUNBUFFERED=1
 Environment=XDG_RUNTIME_DIR=/run/user/$REAL_UID
 Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$REAL_UID/bus
 Environment=HOME=$REAL_HOME
+Environment=PULSE_SERVER=unix:/run/user/$REAL_UID/pulse/native
 
-# Attendi che DRM/KMS e user session siano pronti
-ExecStartPre=/bin/sleep 2
-
-# Cage compositor Wayland kiosk -> imposta WAYLAND_DISPLAY per l'app
-ExecStart=/usr/bin/cage -s -- $START_SCRIPT
+ExecStartPre=/bin/sleep 3
+ExecStart=$START_SCRIPT
 
 Restart=always
 RestartSec=3
