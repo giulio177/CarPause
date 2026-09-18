@@ -14,7 +14,6 @@ Rectangle {
 
     property string levelFilter: "ALL" // "ALL", "INFO", "WARNING", "ERROR"
     property bool autoScroll: true
-    property real savedContentY: 0
 
     // Filtered logs list
     readonly property var filteredLogs: {
@@ -26,15 +25,6 @@ Rectangle {
             if (levelFilter === "INFO") return entry.level === "INFO";
             return true;
         });
-    }
-
-    onFilteredLogsChanged: {
-        if (!autoScroll) {
-            savedContentY = logListView.contentY;
-            Qt.callLater(function() {
-                logListView.contentY = Math.min(savedContentY, Math.max(0, logListView.contentHeight - logListView.height));
-            });
-        }
     }
 
     Component.onCompleted: {
@@ -341,8 +331,17 @@ Rectangle {
                 model: logsViewRoot.filteredLogs
 
                 onCountChanged: {
-                    if (logsViewRoot.autoScroll && count > 0) {
+                    if (logsViewRoot.autoScroll && !logListView.moving && !logListView.dragging && !logListView.flicking && count > 0) {
                         Qt.callLater(logListView.positionViewAtEnd);
+                    }
+                }
+
+                onMovementEnded: {
+                    var distFromBottom = (contentHeight - height) - contentY;
+                    if (distFromBottom > 40) {
+                        logsViewRoot.autoScroll = false;
+                    } else {
+                        logsViewRoot.autoScroll = true;
                     }
                 }
 

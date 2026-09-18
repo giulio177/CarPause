@@ -14,16 +14,6 @@ Rectangle {
 
     property bool autoScroll: true
     readonly property var allTerminalLines: backend.terminalLogs || []
-    property real savedContentY: 0
-
-    onAllTerminalLinesChanged: {
-        if (!autoScroll) {
-            savedContentY = terminalListView.contentY;
-            Qt.callLater(function() {
-                terminalListView.contentY = Math.min(savedContentY, Math.max(0, terminalListView.contentHeight - terminalListView.height));
-            });
-        }
-    }
 
     Component.onCompleted: {
         Qt.callLater(function() {
@@ -291,8 +281,17 @@ Rectangle {
                 boundsBehavior: Flickable.StopAtBounds
 
                 onCountChanged: {
-                    if (terminalViewRoot.autoScroll && count > 0) {
+                    if (terminalViewRoot.autoScroll && !terminalListView.moving && !terminalListView.dragging && !terminalListView.flicking && count > 0) {
                         Qt.callLater(terminalListView.positionViewAtEnd);
+                    }
+                }
+
+                onMovementEnded: {
+                    var distFromBottom = (contentHeight - height) - contentY;
+                    if (distFromBottom > 40) {
+                        terminalViewRoot.autoScroll = false;
+                    } else {
+                        terminalViewRoot.autoScroll = true;
                     }
                 }
 

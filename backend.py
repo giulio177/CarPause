@@ -265,7 +265,9 @@ class InfotainmentBackend(QObject):
             pass
 
     def _sync_logs_to_qml(self) -> None:
-        """Reads session log file and terminal log file from disk and updates QML frontend only if changed."""
+        """Reads session log file and terminal log file from disk and updates QML frontend only if in settings and changed."""
+        if self._current_view != "settings":
+            return
         new_app_logs = self._log_service.read_logs(self._current_log_file)
         if len(new_app_logs) != len(self._app_logs):
             self._app_logs = new_app_logs
@@ -278,6 +280,8 @@ class InfotainmentBackend(QObject):
 
     def _poll_terminal_logs(self) -> None:
         """Lightweight background poll for newly written terminal lines."""
+        if self._current_view != "settings":
+            return
         new_logs = self._log_service.read_terminal_logs()
         if len(new_logs) != len(self._terminal_logs):
             self._terminal_logs = new_logs
@@ -1423,7 +1427,9 @@ class InfotainmentBackend(QObject):
         if view_name != self._current_view:
             self._current_view = view_name
             self.currentViewChanged.emit(self._current_view)
-            if view_name == "airplay" and self._airplay_available and not self._airplay_running:
+            if view_name == "settings":
+                self._sync_logs_to_qml()
+            elif view_name == "airplay" and self._airplay_available and not self._airplay_running:
                 self.startAirPlay()
 
     @pyqtSlot()

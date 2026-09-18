@@ -195,7 +195,7 @@ class LogService:
     def terminal_log_path(self) -> str:
         return os.path.join(self._base_dir, "terminal.log")
 
-    def read_terminal_logs(self, max_lines: int = 1500) -> List[Dict[str, Any]]:
+    def read_terminal_logs(self, max_lines: int = 300) -> List[Dict[str, Any]]:
         """
         Reads lines from terminal.log (stdout/stderr of the system).
         Returns a structured list with line number, level indicator, and text.

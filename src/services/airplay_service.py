@@ -422,6 +422,8 @@ class AirPlayService:
         Single tap detected on the touchscreen during AirPlay mirroring.
         Notifies UI to display the floating exit 'X' button without terminating the stream.
         """
+        if not self._is_streaming:
+            return
         logger.info("Touch tap detected on car screen during AirPlay stream -> Showing exit button")
         if self._on_touch:
             try:
@@ -440,6 +442,10 @@ class AirPlayService:
         for raw_line in iter(proc.stdout.readline, ""):
             line = raw_line.strip()
             if not line:
+                continue
+
+            # Filter high-frequency GStreamer bus noise to avoid log flood and CPU drain
+            if "GStreamer" in line and any(k in line for k in ["state-changed", "stream-status", "new-clock", "capssetter"]):
                 continue
 
             logger.info("[UxPlay] %s", line)
