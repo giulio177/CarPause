@@ -24,11 +24,10 @@ elif [ -n "$DISPLAY" ]; then
 else
     # Running standalone directly from console / KMS without desktop environment
     export QT_QPA_PLATFORM="eglfs"
+    export QT_QPA_EGLFS_INTEGRATION="eglfs_kms"
+    export QT_QPA_EGLFS_KMS_ATOMIC=1
+    export QT_QPA_EGLFS_KMS_CONFIG="$SCRIPT_DIR/eglfs_kms.json"
     export QT_QPA_EGLFS_ALWAYS_SET_MODE=1
-    export QT_QPA_EGLFS_WIDTH=1024
-    export QT_QPA_EGLFS_HEIGHT=600
-    export QT_QPA_EGLFS_PHYSICAL_WIDTH=154
-    export QT_QPA_EGLFS_PHYSICAL_HEIGHT=86
 fi
 
 # -----------------------------------------------------------------------------

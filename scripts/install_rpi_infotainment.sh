@@ -70,12 +70,15 @@ apt install -y \
     gstreamer1.0-alsa gstreamer1.0-pulseaudio \
     python3-evdev
 
-# Pacchetti PyQt6 e QtQuick nativi Debian/Raspberry Pi OS (se disponibili nei repository apt)
+# Pacchetti PyQt6, QtQuick e EGLFS KMS nativi Debian/Raspberry Pi OS
 apt install -y \
     python3-pyqt6 python3-pyqt6.qtquick python3-pyqt6.qtmultimedia python3-pyqt6.qtdbus \
     qml6-module-qtquick qml6-module-qtquick-controls qml6-module-qtquick-layouts \
-    qml6-module-qtquick-window qml6-module-qtmultimedia 2>/dev/null || {
-    echo "Nota: Alcuni moduli Qt6 QML saranno gestiti direttamente dal virtualenv Python."
+    qml6-module-qtquick-window qml6-module-qtmultimedia \
+    libqt6eglfsdeviceintegration6 libqt6eglfskmsgbmsupport6 \
+    qt6-qpa-plugins qt6-gtk-platformtheme \
+    libgbm-dev libdrm-dev libegl1-mesa-dev 2>/dev/null || {
+    echo "Nota: Alcuni moduli Qt6 QML/EGLFS saranno gestiti direttamente dal virtualenv Python."
 }
 
 # Tentativo installazione pacchetto uxplay via apt
@@ -243,6 +246,12 @@ usermod -aG video,input,render,audio,dialout,netdev "$REAL_USER"
 cat >/etc/udev/rules.d/99-uinput-infotainment.rules <<EOF
 KERNEL=="uinput", MODE="0660", GROUP="input"
 EOF
+
+# Regola udev per accesso DRM/GPU dal servizio systemd (senza desktop session)
+cat >/etc/udev/rules.d/99-drm-infotainment.rules <<EOF
+SUBSYSTEM=="drm", MODE="0660", GROUP="video"
+EOF
+
 udevadm control --reload-rules && udevadm trigger || true
 echo "Gruppi e permessi udev aggiornati."
 echo
