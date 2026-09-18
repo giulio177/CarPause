@@ -548,7 +548,7 @@ Item {
                 }
 
                 Text {
-                    text: "Durante la duplicazione schermo, tocca lo schermo in qualsiasi punto per terminare e tornare all'infotainment."
+                    text: "Durante la duplicazione schermo, tocca lo schermo o tieni premuto per 5 secondi per forzare l'uscita immediata."
                     color: theme.textSecondary
                     font.pixelSize: 12
                     Layout.fillWidth: true

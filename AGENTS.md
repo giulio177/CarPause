@@ -108,7 +108,7 @@ Default section order:
   - `popups/`: Dedicated parameterized modals (`ConfirmationModal.qml` for system alerts/reboots, `WifiPasswordModal.qml` with integrated touch keyboard, `NetworkDetailsModal.qml` for Wi-Fi info/forget, `DeviceDetailsModal.qml` for Bluetooth device info/unpair, `LyricsModal.qml` for displaying song lyrics, `AirPlayExitOverlay.qml` for floating top-right touch exit during video streaming).
   - `components/`: Core touch components (`MaterialIcon.qml` utilizing Google Material Symbols Rounded font, `AppleSwitch.qml` for iOS-like toggles, `VirtualKeyboard.qml` for automotive text input).
 - `src/services/`: Linux OS and hardware services (zero Qt dependency):
-  - `airplay_service.py`: Subprocess lifecycle manager for UxPlay AirPlay mirroring daemon (supports software `-avdec` FFmpeg NEON decoding for faithful 100% colorimetry eliminating RPi 4 V4L2 solarization, automatic process teardown and restart on client disconnect to prevent frozen last-frames, and background `evdev` touch event monitoring on `/dev/input/event*` for instant tap-to-exit on the car touchscreen).
+  - `airplay_service.py`: Subprocess lifecycle manager for UxPlay AirPlay mirroring daemon (supports software `-avdec` FFmpeg NEON decoding for faithful 100% colorimetry eliminating RPi 4 V4L2 solarization, direct DRM framebuffer `-vs kmssink` rendering, `-srgb no` prevention of channel distortion, unbuffered line I/O via `stdbuf`, automatic process teardown and restart on client disconnect to prevent frozen last-frames, debounced tap-to-exit, and 5-second continuous touch hold watchdog triggering `killall -9 uxplay`).
   - `local_music_service.py`: Scans `music/` for audio files (`.mp3`, `.wav`, `.ogg`, `.flac`, `.m4a`), parses sidecar JSON metadata, cover artwork, and lyrics files (`.lrc`, `.txt`).
   - `log_service.py`: Session-based file logging manager creating per-boot log files in `logs/` (`session_YYYY-MM-DD_HH-MM-SS.log`), automatically cleaning up 0-byte stale sessions, immediately flushing log records to disk, and parsing log lines into structured dictionaries for the UI.
   - `system_service.py`: WirePlumber/PipeWire (`wpctl`), PulseAudio multi-sink and stream muting (`pactl`), ALSA Master fallback (`amixer`), CPU thermal sensors, Open-Meteo weather client.
@@ -118,8 +118,9 @@ Default section order:
   - `obd_service.py`: Real ELM327 serial port scanning and vehicle telemetry connection.
 - `src/core/`: Thread pool async runner (`QThreadPool`) ensuring zero main GUI thread blocking with safe thread teardown.
 - `scripts/`: Deployment, installation, and hardware startup scripts:
+  - `touch_killer.py`: Standalone emergency watchdog continuously polling `/dev/input/event*` devices. If the user presses and holds the touchscreen continuously for 5 seconds, it forcefully terminates UxPlay (`killall -9 uxplay` and `pkill -9 -f uxplay`) to immediately restore the infotainment interface.
   - `install_rpi_infotainment.sh`: Idempotent system-wide installer for Raspberry Pi OS (configures Full KMS `vc4-kms-v3d`, 1024x600 HDMI timings, PipeWire/ALSA, BlueZ auto-pairing, UxPlay AirPlay mirror receiver with GStreamer acceleration, user permissions, and systemd autostart).
-  - `start_infotainment.sh`: Automotive kiosk launcher optimizing Qt Quick scenegraph (`QSG_RENDER_LOOP=threaded`), platform plugins (EGLFS/Wayland), audio routing, and executing `main.py`.
+  - `start_infotainment.sh`: Automotive kiosk launcher optimizing Qt Quick scenegraph (`QSG_RENDER_LOOP=threaded`), platform plugins (EGLFS/Wayland), audio routing, launching `touch_killer.py`, and executing `main.py`.
   - `update_infotainment.sh`: One-click remote updater pulling latest git commits from GitHub, installing dependency updates, and restarting the application.
 
 ## Child DOX Index

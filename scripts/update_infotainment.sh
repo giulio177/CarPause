@@ -50,7 +50,7 @@ if [ -f "venv/bin/activate" ] && [ -f "requirements.txt" ]; then
 fi
 
 # 6. Assicura permessi di esecuzione su tutti gli script
-chmod +x scripts/*.sh 2>/dev/null || true
+chmod +x scripts/* 2>/dev/null || true
 
 echo ">> Aggiornamento completato con successo alla versione $REMOTE_HASH."
 exit 0

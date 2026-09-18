@@ -55,6 +55,17 @@ export PULSE_SERVER="unix:$XDG_RUNTIME_DIR/pulse/native"
 export SDL_AUDIODRIVER="pulseaudio"
 
 # -----------------------------------------------------------------------------
-# 4. EXECUTION
+# 4. EMERGENCY TOUCH WATCHDOG (5-second screen hold force-kills uxplay)
+# -----------------------------------------------------------------------------
+pkill -f "touch_killer.py" 2>/dev/null || true
+mkdir -p "$SCRIPT_DIR/logs"
+
+if [ -f "$SCRIPT_DIR/scripts/touch_killer.py" ]; then
+    chmod +x "$SCRIPT_DIR/scripts/touch_killer.py" 2>/dev/null || true
+    python3 "$SCRIPT_DIR/scripts/touch_killer.py" >> "$SCRIPT_DIR/logs/touch_killer.log" 2>&1 &
+fi
+
+# -----------------------------------------------------------------------------
+# 5. EXECUTION
 # -----------------------------------------------------------------------------
 exec python3 "$SCRIPT_DIR/main.py"
