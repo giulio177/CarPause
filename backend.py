@@ -184,7 +184,8 @@ class InfotainmentBackend(QObject):
         self._bt_devices: List[Dict[str, Any]] = []
 
         # 9. AirPlay State (UxPlay screen mirroring)
-        self._airplay_service = AirPlayService(server_name="Mito-AirPlay")
+        self._airplay_decoder: str = str(self._settings.value("airplay/decoder", "software"))
+        self._airplay_service = AirPlayService(server_name="Mito-AirPlay", decoder_mode=self._airplay_decoder)
         self._airplay_available: bool = AirPlayService.is_available()
         self._airplay_running: bool = False
         self._airplay_streaming: bool = False
@@ -1213,6 +1214,10 @@ class InfotainmentBackend(QObject):
     def airplayStatusMessage(self) -> str:
         return self._airplay_status_message
 
+    @pyqtProperty(str, notify=airplayChanged)
+    def airplayDecoder(self) -> str:
+        return self._airplay_decoder
+
     @pyqtProperty(bool, notify=airplayExitPopupChanged)
     def airplayShowExitPopup(self) -> bool:
         return self._airplay_show_exit_popup
@@ -1990,6 +1995,26 @@ class InfotainmentBackend(QObject):
         self.airplayStreamingChanged.emit(False)
         self.airplayExitPopupChanged.emit(False)
         self.airplayChanged.emit()
+
+    @pyqtSlot()
+    def stopAirPlayStream(self) -> None:
+        """Stops the active AirPlay video stream and returns to listening mode."""
+        self._airplay_service.stop_current_stream()
+        self._airplay_streaming = False
+        self._airplay_show_exit_popup = False
+        self._airplay_popup_timer.stop()
+        self.airplayStreamingChanged.emit(False)
+        self.airplayExitPopupChanged.emit(False)
+        self.airplayChanged.emit()
+
+    @pyqtSlot(str)
+    def setAirPlayDecoder(self, mode: str) -> None:
+        """Sets AirPlay decoder mode: 'software' (-avdec, faithful colors) or 'hardware' (-bt709)."""
+        if mode in ("software", "hardware") and mode != self._airplay_decoder:
+            self._airplay_decoder = mode
+            self._settings.setValue("airplay/decoder", mode)
+            self._airplay_service.decoder_mode = mode
+            self.airplayChanged.emit()
 
     @pyqtSlot()
     def toggleAirPlay(self) -> None:

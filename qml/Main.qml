@@ -127,10 +127,8 @@ ApplicationWindow {
         anchors.fill: parent
         z: 9998
         visible: backend.airplayStreaming
-        propagateComposedEvents: true
         onClicked: (mouse) => {
-            backend.triggerAirPlayTouch();
-            mouse.accepted = false;
+            backend.stopAirPlayStream();
         }
     }
 

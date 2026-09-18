@@ -7,6 +7,7 @@ Adheres strictly to the DOX contract and zero dummy data policy.
 
 import os
 import re
+import time
 import signal
 import shutil
 import logging
@@ -28,6 +29,7 @@ class TouchMonitorThread(threading.Thread):
         self._on_touch = on_touch_callback
         self._stop_event = threading.Event()
         self._devices = []
+        self._last_touch_time = 0.0
 
     def stop(self) -> None:
         self._stop_event.set()
@@ -66,7 +68,7 @@ class TouchMonitorThread(threading.Thread):
             logger.debug("No touch or pointer evdev devices identified")
             return
 
-        logger.info("Monitoring %d input device(s) for touch wake events", len(self._devices))
+        logger.info("Monitoring %d input device(s) for touch wake/exit events", len(self._devices))
 
         while not self._stop_event.is_set():
             try:
@@ -75,14 +77,23 @@ class TouchMonitorThread(threading.Thread):
                     continue
                 for dev in r:
                     for event in dev.read():
+                        is_tap = False
                         # Detect touch down or mouse click
                         if event.type == evdev.ecodes.EV_KEY:
                             if event.code in (evdev.ecodes.BTN_TOUCH, evdev.ecodes.BTN_LEFT) and event.value == 1:
-                                if self._on_touch:
-                                    self._on_touch()
+                                is_tap = True
                         elif event.type == evdev.ecodes.EV_ABS:
                             # Touchscreen position update/press
-                            if event.code in (evdev.ecodes.ABS_X, evdev.ecodes.ABS_Y, evdev.ecodes.ABS_MT_POSITION_X):
+                            if event.code in (evdev.ecodes.ABS_PRESSURE, evdev.ecodes.ABS_MT_PRESSURE) and event.value > 0:
+                                is_tap = True
+                            elif event.code in (evdev.ecodes.ABS_X, evdev.ecodes.ABS_Y, evdev.ecodes.ABS_MT_POSITION_X):
+                                is_tap = True
+
+                        if is_tap:
+                            now = time.time()
+                            # Debounce touch events by 1.2s to avoid spam
+                            if now - self._last_touch_time > 1.2:
+                                self._last_touch_time = now
                                 if self._on_touch:
                                     self._on_touch()
             except Exception as exc:
@@ -96,8 +107,10 @@ class AirPlayService:
     Subprocess lifecycle manager for UxPlay AirPlay mirroring server.
     """
 
-    def __init__(self, server_name: str = "Mito-AirPlay"):
+    def __init__(self, server_name: str = "Mito-AirPlay", decoder_mode: str = "software"):
         self._server_name = server_name
+        self._decoder_mode = decoder_mode  # "software" (avdec) or "hardware" (bt709)
+        self._lock = threading.Lock()
         self._process: Optional[subprocess.Popen] = None
         self._reader_thread: Optional[threading.Thread] = None
         self._touch_thread: Optional[TouchMonitorThread] = None
@@ -130,6 +143,18 @@ class AirPlayService:
         return self._server_name
 
     @property
+    def decoder_mode(self) -> str:
+        return self._decoder_mode
+
+    @decoder_mode.setter
+    def decoder_mode(self, mode: str) -> None:
+        if mode in ("software", "hardware") and mode != self._decoder_mode:
+            self._decoder_mode = mode
+            logger.info("AirPlay decoder mode set to: %s", mode)
+            if self.is_running:
+                threading.Thread(target=self.stop_current_stream, daemon=True).start()
+
+    @property
     def client_info(self) -> str:
         return self._client_info
 
@@ -154,68 +179,81 @@ class AirPlayService:
                 on_status(False, False, self._status_message)
             return False
 
-        if self.is_running:
-            logger.info("UxPlay daemon already running")
-            return True
+        with self._lock:
+            if self.is_running:
+                logger.info("UxPlay daemon already running")
+                return True
 
-        self._on_streaming_start = on_streaming_start
-        self._on_streaming_stop = on_streaming_stop
-        self._on_touch = on_touch
-        self._on_status = on_status
+            self._on_streaming_start = on_streaming_start
+            self._on_streaming_stop = on_streaming_stop
+            self._on_touch = on_touch
+            self._on_status = on_status
 
-        # Build command arguments
-        cmd = [
-            "uxplay",
-            "-n", self._server_name,
-            "-nh",           # Do not append @hostname
-            "-s", "1024x600", # Native screen resolution
-            "-fs",           # Fullscreen mode
-            "-p",            # Support AirPlay PIN / standard port discovery
-        ]
+            # Build command arguments
+            cmd = [
+                "uxplay",
+                "-n", self._server_name,
+                "-nh",           # Do not append @hostname
+                "-s", "1024x600", # Native screen resolution
+                "-fs",           # Fullscreen mode
+                "-p",            # Support AirPlay PIN / standard port discovery
+            ]
 
-        # Optimize video sink based on graphics platform
-        if os.environ.get("WAYLAND_DISPLAY"):
-            cmd.extend(["-vs", "waylandsink"])
-        else:
-            cmd.extend(["-vs", "autovideosink"])
+            # Decoder selection:
+            # - Software (-avdec): Uses FFmpeg libav avdec_h264 with NEON SIMD.
+            #   Completely fixes the severe Raspberry Pi 4 V4L2 color distortion / solarization
+            #   bug (BT.709 full range misinterpretation) and prevents GStreamer pipeline freezes.
+            # - Hardware (-bt709): Broadcom GPU V4L2 decoder requiring explicit BT.709 colorimetry fix.
+            if self._decoder_mode == "software":
+                cmd.append("-avdec")
+            else:
+                cmd.append("-bt709")
 
-        # Optimize audio sink
-        cmd.extend(["-as", "pulsesink"])
+            # Optimize video sink based on graphics platform
+            if os.environ.get("WAYLAND_DISPLAY"):
+                cmd.extend(["-vs", "waylandsink"])
+            else:
+                cmd.extend(["-vs", "autovideosink"])
 
-        logger.info("Starting UxPlay with command: %s", " ".join(cmd))
-        try:
-            self._process = subprocess.Popen(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                stdin=subprocess.PIPE,
-                text=True,
-                bufsize=1,
-            )
-            self._is_running = True
-            self._is_streaming = False
-            self._status_message = "In ascolto (In attesa di connessione)"
-            self._notify_status()
+            # Optimize audio sink
+            cmd.extend(["-as", "pulsesink"])
 
-            # Start background reader for stdout/stderr
-            self._reader_thread = threading.Thread(target=self._stdout_reader, daemon=True)
-            self._reader_thread.start()
-            return True
-        except Exception as exc:
-            logger.error("Failed to launch uxplay: %s", exc)
-            self._is_running = False
-            self._status_message = f"Errore avvio: {exc}"
-            self._notify_status()
-            return False
+            logger.info("Starting UxPlay (decoder: %s) with command: %s", self._decoder_mode, " ".join(cmd))
+            try:
+                self._process = subprocess.Popen(
+                    cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    stdin=subprocess.PIPE,
+                    text=True,
+                    bufsize=1,
+                )
+                self._is_running = True
+                self._is_streaming = False
+                self._status_message = "In ascolto (In attesa di connessione)"
+                self._notify_status()
+
+                # Start background reader for stdout/stderr
+                self._reader_thread = threading.Thread(target=self._stdout_reader, daemon=True)
+                self._reader_thread.start()
+                return True
+            except Exception as exc:
+                logger.error("Failed to launch uxplay: %s", exc)
+                self._is_running = False
+                self._status_message = f"Errore avvio: {exc}"
+                self._notify_status()
+                return False
 
     def stop_server(self) -> None:
-        """Stops UxPlay completely."""
+        """
+        Stops UxPlay completely and guarantees release of the DRM/KMS framebuffer
+        so the Qt Quick infotainment interface is restored immediately.
+        """
         self._stop_touch_monitor()
 
         if self._process is not None:
             logger.info("Stopping UxPlay daemon...")
             try:
-                # Try sending 'q' to stdin
                 if self._process.stdin and not self._process.stdin.closed:
                     try:
                         self._process.stdin.write("q\n")
@@ -223,13 +261,20 @@ class AirPlayService:
                     except Exception:
                         pass
                 self._process.send_signal(signal.SIGINT)
-                self._process.wait(timeout=1.5)
+                self._process.wait(timeout=0.6)
             except (subprocess.TimeoutExpired, Exception):
                 try:
                     self._process.kill()
+                    self._process.wait(timeout=0.4)
                 except Exception:
                     pass
             self._process = None
+
+        # Clean up any lingering uxplay helper or orphaned processes to ensure display plane is cleared
+        try:
+            subprocess.run(["pkill", "-9", "-f", "uxplay"], timeout=0.8, capture_output=True)
+        except Exception:
+            pass
 
         self._is_running = False
         was_streaming = self._is_streaming
@@ -248,11 +293,13 @@ class AirPlayService:
     def stop_current_stream(self) -> None:
         """
         Interrupts the active mirroring stream while keeping the server ready
-        for subsequent connections.
+        for subsequent connections. Destroys the video window to instantly restore
+        the infotainment UI, then quietly restarts listening.
         """
-        logger.info("Terminating current AirPlay stream...")
+        logger.info("Terminating current AirPlay stream and restoring listening state...")
         self.stop_server()
-        # Immediately restart in listening mode
+        # Brief pause to ensure DRM/KMS framebuffer is completely relinquished to Qt
+        time.sleep(0.3)
         self.start_server(
             on_streaming_start=self._on_streaming_start,
             on_streaming_stop=self._on_streaming_stop,
@@ -262,14 +309,31 @@ class AirPlayService:
 
     def _start_touch_monitor(self) -> None:
         self._stop_touch_monitor()
-        if self._on_touch:
-            self._touch_thread = TouchMonitorThread(self._on_touch)
-            self._touch_thread.start()
+        # Wire touch monitor to handle physical touchscreen taps during stream
+        self._touch_thread = TouchMonitorThread(self._handle_touch_during_stream)
+        self._touch_thread.start()
 
     def _stop_touch_monitor(self) -> None:
         if self._touch_thread is not None:
             self._touch_thread.stop()
             self._touch_thread = None
+
+    def _handle_touch_during_stream(self) -> None:
+        """
+        Called when the car physical touchscreen is tapped while AirPlay mirroring is active.
+        Since iOS AirPlay mirroring does not support reverse touch control, tapping anywhere
+        on the screen indicates the driver/passenger wants to exit AirPlay and return
+        to the infotainment dashboard.
+        """
+        if self._is_streaming:
+            logger.info("Touch event detected on car screen during AirPlay stream -> Exiting stream and restoring UI")
+            threading.Thread(target=self.stop_current_stream, daemon=True).start()
+
+        if self._on_touch:
+            try:
+                self._on_touch()
+            except Exception as exc:
+                logger.error("Error in on_touch callback: %s", exc)
 
     def _stdout_reader(self) -> None:
         """Reads stdout line by line from UxPlay to track real connection state."""
@@ -292,7 +356,7 @@ class AirPlayService:
                 self._client_info = match.group(1)
 
             # Detect mirroring start
-            if "starting mirroring" in line.lower() or "raop_rtp_mirror" in line.lower() or "video stream started" in line.lower():
+            if any(k in line.lower() for k in ["starting mirroring", "raop_rtp_mirror", "video stream started"]):
                 if not self._is_streaming:
                     self._is_streaming = True
                     self._status_message = f"Streaming attivo ({self._client_info or 'iPhone'})"
@@ -306,11 +370,14 @@ class AirPlayService:
                     self._notify_status()
 
             # Detect mirroring stop / teardown
-            elif any(k in line.lower() for k in ["stopping mirroring", "connection closed", "teardown", "reset by peer"]):
+            elif any(k in line.lower() for k in [
+                "stopping mirroring", "connection closed", "teardown",
+                "reset by peer", "raop_rtp_mirror stopping", "end of stream", "broken pipe"
+            ]):
                 if self._is_streaming:
                     self._is_streaming = False
                     self._status_message = "In ascolto (Dispositivo disconnesso)"
-                    logger.info("AirPlay video mirroring stream STOPPED")
+                    logger.info("AirPlay video mirroring stream STOPPED -> Resetting UxPlay to clear frozen frame")
                     self._stop_touch_monitor()
                     if self._on_streaming_stop:
                         try:
@@ -318,6 +385,10 @@ class AirPlayService:
                         except Exception as exc:
                             logger.error("Error in on_streaming_stop callback: %s", exc)
                     self._notify_status()
+
+                    # Immediately reset UxPlay process so the GStreamer video window disappears
+                    # and the Mito UI is restored without freezing on the last frame
+                    threading.Thread(target=self.stop_current_stream, daemon=True).start()
 
         # Process exited
         self._is_running = False

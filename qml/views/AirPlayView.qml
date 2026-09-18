@@ -525,11 +525,11 @@ Item {
         }
 
         // ====================================================================
-        // 4. FOOTER NOTE / TOUCH HINT
+        // 4. FOOTER NOTE / TOUCH HINT & DECODER MODE
         // ====================================================================
         Rectangle {
             Layout.fillWidth: true
-            height: 38
+            height: 40
             radius: theme.radiusMedium
             color: theme.surfaceDark
             border.color: theme.surfaceBorder
@@ -548,10 +548,50 @@ Item {
                 }
 
                 Text {
-                    text: "Durante la duplicazione a schermo intero, tocca lo schermo in qualsiasi punto per far comparire il tasto di chiusura in alto a destra."
+                    text: "Durante la duplicazione schermo, tocca lo schermo in qualsiasi punto per terminare e tornare all'infotainment."
                     color: theme.textSecondary
                     font.pixelSize: 12
                     Layout.fillWidth: true
+                }
+
+                // Decoder Mode Indicator / Quick Toggle
+                Rectangle {
+                    height: 24
+                    radius: 12
+                    color: backend.airplayDecoder === "software" ? "#143026" : "#2E2419"
+                    border.color: backend.airplayDecoder === "software" ? theme.accentGreen : theme.accentYellow
+                    border.width: 1
+                    implicitWidth: decoderLabel.implicitWidth + 20
+
+                    Row {
+                        anchors.centerIn: parent
+                        spacing: 5
+
+                        MaterialIcon {
+                            name: backend.airplayDecoder === "software" ? "palette" : "speed"
+                            size: 13
+                            iconColor: backend.airplayDecoder === "software" ? theme.accentGreen : theme.accentYellow
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+
+                        Text {
+                            id: decoderLabel
+                            text: backend.airplayDecoder === "software" ? "Colori Fedeli (avdec)" : "Hardware (v4l2)"
+                            color: backend.airplayDecoder === "software" ? theme.accentGreen : theme.accentYellow
+                            font.pixelSize: 10
+                            font.bold: true
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            var nextMode = backend.airplayDecoder === "software" ? "hardware" : "software";
+                            backend.setAirPlayDecoder(nextMode);
+                        }
+                    }
                 }
             }
         }

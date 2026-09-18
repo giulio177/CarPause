@@ -87,7 +87,7 @@ Item {
             cursorShape: Qt.PointingHandCursor
             hoverEnabled: true
             onClicked: {
-                backend.stopAirPlay();
+                backend.stopAirPlayStream();
             }
         }
     }

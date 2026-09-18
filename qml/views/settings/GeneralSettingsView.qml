@@ -127,6 +127,32 @@ Rectangle {
                         }
                     }
                 }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    Text { text: "Ricevitore AirPlay Mirroring"; color: theme.textSecondary; font.pixelSize: 13 }
+                    Item { Layout.fillWidth: true }
+                    Row {
+                        spacing: 6
+                        Rectangle {
+                            height: 22
+                            radius: 11
+                            color: backend.airplayRunning ? "#143026" : "#2E2419"
+                            border.color: backend.airplayRunning ? theme.accentGreen : theme.surfaceBorder
+                            border.width: 1
+                            implicitWidth: airplayLabel.implicitWidth + 18
+
+                            Text {
+                                id: airplayLabel
+                                anchors.centerIn: parent
+                                text: backend.airplayRunning ? (backend.airplayDecoder === "software" ? "Attivo (Colori Fedeli avdec)" : "Attivo (Hardware)") : "Disattivato"
+                                color: backend.airplayRunning ? theme.accentGreen : theme.textMuted
+                                font.pixelSize: 10
+                                font.bold: true
+                            }
+                        }
+                    }
+                }
             }
 
             // ================================================================
