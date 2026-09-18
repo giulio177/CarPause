@@ -215,6 +215,7 @@ Rectangle {
                             model: btSettingsRoot.myDevices
 
                             delegate: Rectangle {
+                                id: pairedDevDelegate
                                 width: btListColumn.width
                                 height: 54
                                 radius: theme.radiusMedium
@@ -223,6 +224,7 @@ Rectangle {
                                 border.width: isConnected ? 1.5 : 1
 
                                 readonly property bool isConnected: Boolean(modelData && modelData.connected)
+                                readonly property bool isConnecting: Boolean(backend && backend.bluetoothConnectingMac && modelData && backend.bluetoothConnectingMac === modelData.mac)
                                 readonly property string devIconName: {
                                     if (!modelData || !modelData.name) return "bluetooth";
                                     var n = modelData.name.toLowerCase();
@@ -258,21 +260,19 @@ Rectangle {
                                         Layout.fillWidth: true
                                     }
 
-                                    readonly property bool isConnecting: Boolean(backend.bluetoothConnectingMac && modelData && backend.bluetoothConnectingMac === modelData.mac)
-
                                     // Status text (Apple-style with connecting spinner)
                                     Row {
                                         spacing: 6
                                         Layout.alignment: Qt.AlignVCenter
 
                                         MaterialIcon {
-                                            visible: isConnecting
+                                            visible: pairedDevDelegate.isConnecting
                                             name: "sync"
                                             size: 14
                                             iconColor: theme.accentCyan
                                             anchors.verticalCenter: parent.verticalCenter
                                             RotationAnimation on rotation {
-                                                running: isConnecting
+                                                running: pairedDevDelegate.isConnecting
                                                 loops: Animation.Infinite
                                                 from: 0
                                                 to: 360
@@ -281,10 +281,10 @@ Rectangle {
                                         }
 
                                         Text {
-                                            text: isConnecting ? "Connessione..." : (isConnected ? "Connesso" : "Non connesso")
-                                            color: isConnecting ? theme.accentCyan : (isConnected ? theme.accentGreen : theme.textMuted)
+                                            text: pairedDevDelegate.isConnecting ? "Connessione..." : (pairedDevDelegate.isConnected ? "Connesso" : "Non connesso")
+                                            color: pairedDevDelegate.isConnecting ? theme.accentCyan : (pairedDevDelegate.isConnected ? theme.accentGreen : theme.textMuted)
                                             font.pixelSize: 13
-                                            font.bold: isConnected || isConnecting
+                                            font.bold: pairedDevDelegate.isConnected || pairedDevDelegate.isConnecting
                                             anchors.verticalCenter: parent.verticalCenter
                                         }
                                     }
@@ -414,6 +414,7 @@ Rectangle {
                             model: btSettingsRoot.otherDevices
 
                             delegate: Rectangle {
+                                id: otherDevDelegate
                                 width: btListColumn.width
                                 height: 54
                                 radius: theme.radiusMedium
@@ -421,6 +422,7 @@ Rectangle {
                                 border.color: theme.surfaceBorder
                                 border.width: 1
 
+                                readonly property bool isConnecting: Boolean(backend && backend.bluetoothConnectingMac && modelData && backend.bluetoothConnectingMac === modelData.mac)
                                 readonly property string devIconName: {
                                     if (!modelData || !modelData.name) return "bluetooth";
                                     var n = modelData.name.toLowerCase();
@@ -453,6 +455,35 @@ Rectangle {
                                         font.pixelSize: 14
                                         elide: Text.ElideRight
                                         Layout.fillWidth: true
+                                    }
+
+                                    // Connecting status indicator
+                                    Row {
+                                        visible: otherDevDelegate.isConnecting
+                                        spacing: 6
+                                        Layout.alignment: Qt.AlignVCenter
+
+                                        MaterialIcon {
+                                            name: "sync"
+                                            size: 14
+                                            iconColor: theme.accentCyan
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            RotationAnimation on rotation {
+                                                running: otherDevDelegate.isConnecting
+                                                loops: Animation.Infinite
+                                                from: 0
+                                                to: 360
+                                                duration: 1000
+                                            }
+                                        }
+
+                                        Text {
+                                            text: "Connessione..."
+                                            color: theme.accentCyan
+                                            font.pixelSize: 13
+                                            font.bold: true
+                                            anchors.verticalCenter: parent.verticalCenter
+                                        }
                                     }
 
                                     // Blue Info Button
