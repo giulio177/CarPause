@@ -224,9 +224,15 @@ systemctl daemon-reload
 systemctl enable --now bt-auto-pair.service
 systemctl restart bluetooth
 
-# Configurazione WirePlumber 0.5 per A2DP Sink (Car Audio)
+# Configurazione WirePlumber 0.5 per A2DP Sink (Car Audio, senza seat grafico)
 mkdir -p /etc/wireplumber/wireplumber.conf.d
-cat >/etc/wireplumber/wireplumber.conf.d/51-bluez-config.conf <<'WPEOF'
+cat >/etc/wireplumber/wireplumber.conf.d/50-bluez-config.conf <<'WPEOF'
+wireplumber.profiles = {
+  main = {
+    monitor.bluez.seat-monitoring = disabled
+  }
+}
+
 monitor.bluez.properties = {
   bluez5.roles = [ a2dp_sink a2dp_source bap_sink bap_source hfp_hf hfp_ag ]
   bluez5.enable-sbc-xq = true

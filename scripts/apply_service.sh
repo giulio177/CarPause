@@ -109,12 +109,18 @@ set_bt_key "ControllerMode" "dual"        # Supporta sia Classic (A2DP) che BLE
 set_bt_key "MultiProfile" "multiple"      # Consente connessione profili multipli
 set_bt_key "Name" "Mito-Infotainment"
 
-# Configurazione esplicita per WirePlumber 0.5 (abilita a2dp_sink / Car Audio)
+# Configurazione esplicita per WirePlumber 0.5 (abilita a2dp_sink e disabilita seat-monitoring per headless/kiosk)
 echo "  Configurazione WirePlumber 0.5 per A2DP Sink (ricevitore audio)..."
 mkdir -p /etc/wireplumber/wireplumber.conf.d
 mkdir -p "$REAL_HOME/.config/wireplumber/wireplumber.conf.d"
 
-cat >/etc/wireplumber/wireplumber.conf.d/51-bluez-config.conf <<'WPEOF'
+cat >/etc/wireplumber/wireplumber.conf.d/50-bluez-config.conf <<'WPEOF'
+wireplumber.profiles = {
+  main = {
+    monitor.bluez.seat-monitoring = disabled
+  }
+}
+
 monitor.bluez.properties = {
   bluez5.roles = [ a2dp_sink a2dp_source bap_sink bap_source hfp_hf hfp_ag ]
   bluez5.enable-sbc-xq = true
@@ -128,8 +134,14 @@ wireplumber.settings = {
 }
 WPEOF
 
-cp /etc/wireplumber/wireplumber.conf.d/51-bluez-config.conf "$REAL_HOME/.config/wireplumber/wireplumber.conf.d/51-bluez-config.conf"
+cp /etc/wireplumber/wireplumber.conf.d/50-bluez-config.conf "$REAL_HOME/.config/wireplumber/wireplumber.conf.d/50-bluez-config.conf"
 chown -R "$REAL_USER:$REAL_USER" "$REAL_HOME/.config/wireplumber"
+
+# Auto-trust per tutti i dispositivi già associati
+echo "  Trusting automatico dispositivi Bluetooth associati..."
+for dev_mac in $(bluetoothctl devices Paired 2>/dev/null | awk '{print $2}'); do
+    bluetoothctl trust "$dev_mac" 2>/dev/null || true
+done
 
 # =========================================================================
 # 3. Servizio bt-auto-pair (No PIN)
