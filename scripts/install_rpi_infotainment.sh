@@ -61,7 +61,7 @@ apt install -y \
     git python3-venv python3-pip python3-dev build-essential pkg-config cmake \
     python3-dbus python3-gi gir1.2-glib-2.0 dbus-user-session libglib2.0-dev libdbus-1-dev \
     network-manager \
-    pipewire pipewire-pulse wireplumber libspa-0.2-bluetooth alsa-utils libasound2-dev \
+    pipewire pipewire-pulse wireplumber pipewire-audio libspa-0.2-bluetooth alsa-utils libasound2-dev \
     bluez bluez-tools pi-bluetooth bluez-firmware \
     ffmpeg libavcodec-extra rfkill \
     avahi-daemon avahi-utils libavahi-compat-libdnssd-dev libssl-dev libplist-dev \
@@ -223,6 +223,23 @@ EOF
 systemctl daemon-reload
 systemctl enable --now bt-auto-pair.service
 systemctl restart bluetooth
+
+# Configurazione WirePlumber 0.5 per A2DP Sink (Car Audio)
+mkdir -p /etc/wireplumber/wireplumber.conf.d
+cat >/etc/wireplumber/wireplumber.conf.d/51-bluez-config.conf <<'WPEOF'
+monitor.bluez.properties = {
+  bluez5.roles = [ a2dp_sink a2dp_source bap_sink bap_source hfp_hf hfp_ag ]
+  bluez5.enable-sbc-xq = true
+  bluez5.enable-msbc = true
+  bluez5.enable-hw-volume = true
+  bluez5.codecs = [ sbc sbc_xq aac ldac aptx aptx_hd ]
+}
+
+wireplumber.settings = {
+  bluetooth.autoswitch-to-headset-profile = false
+}
+WPEOF
+
 echo "Bluetooth e agente auto-pairing configurati."
 echo
 
@@ -238,7 +255,7 @@ echo
 # 8. Permessi Gruppi Utente
 ###############################################################################
 echo ">>> [5/8] Assegnazione permessi gruppi utente per audio, input e grafica..."
-usermod -aG video,input,render,audio,dialout,netdev "$REAL_USER"
+usermod -aG video,input,render,audio,dialout,netdev,bluetooth "$REAL_USER"
 
 # Regola udev per accesso a /dev/uinput senza privilegi di root
 cat >/etc/udev/rules.d/99-uinput-infotainment.rules <<EOF

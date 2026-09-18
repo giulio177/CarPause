@@ -66,17 +66,20 @@ if [[ -f "$CMDLINE_FILE" ]]; then
 fi
 
 # =========================================================================
-# 2. Fix Bluetooth Audio & Stack (libspa-0.2-bluetooth, main.conf, btmgmt)
+# 2. Fix Bluetooth Audio & Stack (libspa-0.2-bluetooth, WirePlumber 0.5 A2DP)
 # =========================================================================
 echo ">>> Configurazione Bluetooth A2DP & PipeWire..."
 
 # Sblocco RFKill
 rfkill unblock bluetooth 2>/dev/null || true
 
-# Installa modulo Bluetooth per PipeWire se mancante
+# Aggiungi utente a gruppi necessari (incluso bluetooth per permessi D-Bus)
+usermod -aG bluetooth,audio,video,input "$REAL_USER" || true
+
+# Installa modulo Bluetooth per PipeWire e pacchetto pipewire-audio
 if ! dpkg -l | grep -q "libspa-0.2-bluetooth"; then
     echo "  Installazione libspa-0.2-bluetooth per audio smartphone..."
-    apt-get update -qq && apt-get install -y libspa-0.2-bluetooth
+    apt-get update -qq && apt-get install -y libspa-0.2-bluetooth pipewire-audio || true
 fi
 
 # Configurazione /etc/bluetooth/main.conf
@@ -105,6 +108,28 @@ set_bt_key "AutoEnable" "true"            # Acceso al boot
 set_bt_key "ControllerMode" "dual"        # Supporta sia Classic (A2DP) che BLE
 set_bt_key "MultiProfile" "multiple"      # Consente connessione profili multipli
 set_bt_key "Name" "Mito-Infotainment"
+
+# Configurazione esplicita per WirePlumber 0.5 (abilita a2dp_sink / Car Audio)
+echo "  Configurazione WirePlumber 0.5 per A2DP Sink (ricevitore audio)..."
+mkdir -p /etc/wireplumber/wireplumber.conf.d
+mkdir -p "$REAL_HOME/.config/wireplumber/wireplumber.conf.d"
+
+cat >/etc/wireplumber/wireplumber.conf.d/51-bluez-config.conf <<'WPEOF'
+monitor.bluez.properties = {
+  bluez5.roles = [ a2dp_sink a2dp_source bap_sink bap_source hfp_hf hfp_ag ]
+  bluez5.enable-sbc-xq = true
+  bluez5.enable-msbc = true
+  bluez5.enable-hw-volume = true
+  bluez5.codecs = [ sbc sbc_xq aac ldac aptx aptx_hd ]
+}
+
+wireplumber.settings = {
+  bluetooth.autoswitch-to-headset-profile = false
+}
+WPEOF
+
+cp /etc/wireplumber/wireplumber.conf.d/51-bluez-config.conf "$REAL_HOME/.config/wireplumber/wireplumber.conf.d/51-bluez-config.conf"
+chown -R "$REAL_USER:$REAL_USER" "$REAL_HOME/.config/wireplumber"
 
 # =========================================================================
 # 3. Servizio bt-auto-pair (No PIN)
@@ -173,16 +198,17 @@ SVCEOF
 echo ">>> Abilitazione servizi utente PipeWire e WirePlumber..."
 loginctl enable-linger "$REAL_USER" || true
 
-sudo -u "$REAL_USER" XDG_RUNTIME_DIR="/run/user/$REAL_UID" systemctl --user daemon-reload 2>/dev/null || true
-sudo -u "$REAL_USER" XDG_RUNTIME_DIR="/run/user/$REAL_UID" systemctl --user enable --now pipewire pipewire-pulse wireplumber 2>/dev/null || true
-
 systemctl daemon-reload
 systemctl enable infotainment.service
 systemctl enable bt-auto-pair.service
 
-# Riavvia Bluetooth e agent
+# Riavvia Bluetooth in modo che carichi la nuova configurazione main.conf
 systemctl restart bluetooth
 systemctl restart bt-auto-pair.service
+
+# Riavvia WirePlumber e PipeWire per registrare l'endpoint A2DP Sink su BlueZ
+sudo -u "$REAL_USER" XDG_RUNTIME_DIR="/run/user/$REAL_UID" systemctl --user daemon-reload 2>/dev/null || true
+sudo -u "$REAL_USER" XDG_RUNTIME_DIR="/run/user/$REAL_UID" systemctl --user enable --now pipewire pipewire-pulse wireplumber 2>/dev/null || true
 sudo -u "$REAL_USER" XDG_RUNTIME_DIR="/run/user/$REAL_UID" systemctl --user restart pipewire pipewire-pulse wireplumber 2>/dev/null || true
 
 echo ""
@@ -191,7 +217,7 @@ echo "  Configurazione completata!"
 echo "=========================================="
 echo "  Display:      FKMS + 1024x600 hdmi_cvt"
 echo "  Infotainment: linuxfb:/dev/fb0"
-echo "  Bluetooth:    Car Audio (0x200420) + Dual Mode + libspa-0.2-bluetooth"
-echo "  BT Agent:     NoInputNoOutput + btmgmt io-cap 3"
+echo "  Bluetooth:    Car Audio (0x200420) + WirePlumber 0.5 a2dp_sink"
+echo "  BT Agent:     NoInputNoOutput (No PIN)"
 echo "  Wi-Fi:        Rescan attivo supportato"
 echo "=========================================="
