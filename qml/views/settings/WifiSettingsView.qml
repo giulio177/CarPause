@@ -150,6 +150,7 @@ Rectangle {
             contentHeight: wifiListColumn.height
             clip: true
             boundsBehavior: Flickable.StopAtBounds
+            pressDelay: 120
 
             Column {
                 id: wifiListColumn
@@ -251,6 +252,7 @@ Rectangle {
                                         MouseArea {
                                             id: infoBtnArea
                                             anchors.fill: parent
+                                            preventStealing: true
                                             onClicked: {
                                                 networkDetailsModal.openForNetwork(modelData);
                                             }
@@ -263,6 +265,7 @@ Rectangle {
                                     id: rowArea
                                     anchors.fill: parent
                                     anchors.rightMargin: 46 // Don't block info button
+                                    preventStealing: true
                                     onClicked: {
                                         if (isConnected) return;
                                         if (modelData.saved) {
@@ -331,6 +334,7 @@ Rectangle {
                             MouseArea {
                                 id: otherWifiScanArea
                                 anchors.fill: parent
+                                preventStealing: true
                                 enabled: !backend.wifiScanning
                                 onClicked: backend.rescanWifi()
                             }
@@ -424,6 +428,7 @@ Rectangle {
                                         MouseArea {
                                             id: otherInfoBtnArea
                                             anchors.fill: parent
+                                            preventStealing: true
                                             onClicked: {
                                                 networkDetailsModal.openForNetwork(modelData);
                                             }
@@ -436,6 +441,7 @@ Rectangle {
                                     id: otherRowArea
                                     anchors.fill: parent
                                     anchors.rightMargin: 46 // Don't block info button
+                                    preventStealing: true
                                     onClicked: {
                                         if (modelData && modelData.ssid) {
                                             wifiSettingsRoot.requestWifiConnect(modelData.ssid);

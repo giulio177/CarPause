@@ -44,23 +44,24 @@ Item {
                     property string tabId: ""
                     property string iconName: ""
                     property string label: ""
-                    property bool isSelected: settingsRoot.currentSubTab === tabId
+                    readonly property bool isSelected: settingsRoot.currentSubTab === tabId
 
                     Layout.fillWidth: true
                     Layout.preferredHeight: 56
                     radius: theme.radiusMedium
-                    color: isSelected ? theme.surfaceElevated : "transparent"
+                    color: isSelected ? theme.surfaceElevated : (subTabTap.pressed ? Qt.rgba(255, 255, 255, 0.06) : "transparent")
                     border.color: isSelected ? theme.accentCyan : "transparent"
                     border.width: 1.5
 
-                    Behavior on color { ColorAnimation { duration: 150 } }
-                    Behavior on scale { NumberAnimation { duration: 100 } }
+                    Behavior on color { ColorAnimation { duration: 120 } }
 
                     Row {
                         anchors.left: parent.left
                         anchors.leftMargin: 14
                         anchors.verticalCenter: parent.verticalCenter
                         spacing: 10
+                        scale: subTabTap.pressed ? 0.95 : 1.0
+                        Behavior on scale { NumberAnimation { duration: 80 } }
 
                         MaterialIcon {
                             name: iconName
@@ -78,12 +79,10 @@ Item {
                         }
                     }
 
-                    MouseArea {
-                        anchors.fill: parent
-                        onPressed: parent.scale = 0.96
-                        onReleased: parent.scale = 1.0
-                        onCanceled: parent.scale = 1.0
-                        onClicked: settingsRoot.currentSubTab = tabId
+                    TapHandler {
+                        id: subTabTap
+                        margin: 6
+                        onTapped: settingsRoot.currentSubTab = tabId
                     }
                 }
 

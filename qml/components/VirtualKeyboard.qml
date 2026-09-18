@@ -40,7 +40,7 @@ Rectangle {
         border.color: keyMouseArea.pressed ? "#00E5FF" : "#28354A"
         border.width: 1
 
-        Behavior on color { ColorAnimation { duration: 80 } }
+        Behavior on color { ColorAnimation { duration: keyMouseArea.pressed ? 0 : 80 } }
 
         Text {
             anchors.centerIn: parent
@@ -53,7 +53,8 @@ Rectangle {
         MouseArea {
             id: keyMouseArea
             anchors.fill: parent
-            onClicked: {
+            preventStealing: true
+            onPressed: {
                 if (targetInput) {
                     targetInput.text += displayChar;
                 }
@@ -126,7 +127,7 @@ Rectangle {
                 Layout.preferredWidth: 100
                 Layout.preferredHeight: 50
                 radius: 10
-                color: keyboardRoot.isShifted ? "#00E5FF" : "#242E40"
+                color: keyboardRoot.isShifted ? "#00E5FF" : (shiftArea.pressed ? "#35455E" : "#242E40")
                 border.color: "#35455E"
                 border.width: 1
 
@@ -139,8 +140,10 @@ Rectangle {
                 }
 
                 MouseArea {
+                    id: shiftArea
                     anchors.fill: parent
-                    onClicked: keyboardRoot.isShifted = !keyboardRoot.isShifted
+                    preventStealing: true
+                    onPressed: keyboardRoot.isShifted = !keyboardRoot.isShifted
                 }
             }
 
@@ -152,7 +155,7 @@ Rectangle {
             KeyButton { charNormal: "n"; charShift: "N"; charSymbol: ":" }
             KeyButton { charNormal: "m"; charShift: "M"; charSymbol: ";" }
 
-            // BACKSPACE BUTTON
+            // BACKSPACE BUTTON WITH FAST TAP AND HOLD-TO-REPEAT
             Rectangle {
                 Layout.preferredWidth: 100
                 Layout.preferredHeight: 50
@@ -168,13 +171,41 @@ Rectangle {
                     iconColor: "#FFFFFF"
                 }
 
-                MouseArea {
-                    id: bspMouseArea
-                    anchors.fill: parent
-                    onClicked: {
+                Timer {
+                    id: bspRepeatTimer
+                    interval: 75
+                    repeat: true
+                    onTriggered: {
                         if (targetInput && targetInput.text.length > 0) {
                             targetInput.text = targetInput.text.substring(0, targetInput.text.length - 1);
                         }
+                    }
+                }
+
+                Timer {
+                    id: bspInitialDelay
+                    interval: 380
+                    repeat: false
+                    onTriggered: bspRepeatTimer.start()
+                }
+
+                MouseArea {
+                    id: bspMouseArea
+                    anchors.fill: parent
+                    preventStealing: true
+                    onPressed: {
+                        if (targetInput && targetInput.text.length > 0) {
+                            targetInput.text = targetInput.text.substring(0, targetInput.text.length - 1);
+                        }
+                        bspInitialDelay.start();
+                    }
+                    onReleased: {
+                        bspInitialDelay.stop();
+                        bspRepeatTimer.stop();
+                    }
+                    onCanceled: {
+                        bspInitialDelay.stop();
+                        bspRepeatTimer.stop();
                     }
                 }
             }
@@ -192,7 +223,7 @@ Rectangle {
                 Layout.preferredWidth: 90
                 Layout.preferredHeight: 50
                 radius: 10
-                color: keyboardRoot.isSymbols ? "#00E5FF" : "#242E40"
+                color: keyboardRoot.isSymbols ? "#00E5FF" : (symArea.pressed ? "#35455E" : "#242E40")
                 border.color: "#35455E"
                 border.width: 1
 
@@ -205,8 +236,10 @@ Rectangle {
                 }
 
                 MouseArea {
+                    id: symArea
                     anchors.fill: parent
-                    onClicked: keyboardRoot.isSymbols = !keyboardRoot.isSymbols
+                    preventStealing: true
+                    onPressed: keyboardRoot.isSymbols = !keyboardRoot.isSymbols
                 }
             }
 
@@ -219,7 +252,7 @@ Rectangle {
                 Layout.preferredHeight: 50
                 radius: 10
                 color: spaceMouseArea.pressed ? "#00E5FF" : "#18202F"
-                border.color: "#28354A"
+                border.color: spaceMouseArea.pressed ? "#00E5FF" : "#28354A"
                 border.width: 1
 
                 Text {
@@ -233,7 +266,8 @@ Rectangle {
                 MouseArea {
                     id: spaceMouseArea
                     anchors.fill: parent
-                    onClicked: {
+                    preventStealing: true
+                    onPressed: {
                         if (targetInput) targetInput.text += " ";
                     }
                 }
@@ -272,7 +306,8 @@ Rectangle {
                 MouseArea {
                     id: enterMouseArea
                     anchors.fill: parent
-                    onClicked: keyboardRoot.enterPressed()
+                    preventStealing: true
+                    onPressed: keyboardRoot.enterPressed()
                 }
             }
         }

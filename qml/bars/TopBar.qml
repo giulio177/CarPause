@@ -109,7 +109,7 @@ Rectangle {
                 height: 30
                 width: wifiRow.width + 12
                 radius: 8
-                color: wifiMouseArea.pressed ? theme.surfaceElevated : "transparent"
+                color: wifiTap.pressed ? theme.surfaceElevated : "transparent"
                 Layout.alignment: Qt.AlignVCenter
 
                 Behavior on color { ColorAnimation { duration: 120 } }
@@ -118,6 +118,8 @@ Rectangle {
                     id: wifiRow
                     anchors.centerIn: parent
                     spacing: 4
+                    scale: wifiTap.pressed ? 0.94 : 1.0
+                    Behavior on scale { NumberAnimation { duration: 80 } }
 
                     MaterialIcon {
                         name: backend.wifiConnected ? "wifi" : "wifi_off"
@@ -136,11 +138,10 @@ Rectangle {
                     }
                 }
 
-                MouseArea {
-                    id: wifiMouseArea
-                    anchors.fill: parent
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: topBarRoot.requestOpenSettings("wifi")
+                TapHandler {
+                    id: wifiTap
+                    margin: 10
+                    onTapped: topBarRoot.requestOpenSettings("wifi")
                 }
             }
 
@@ -150,7 +151,7 @@ Rectangle {
                 height: 30
                 width: btRow.width + 12
                 radius: 8
-                color: btMouseArea.pressed ? theme.surfaceElevated : "transparent"
+                color: btTap.pressed ? theme.surfaceElevated : "transparent"
                 Layout.alignment: Qt.AlignVCenter
 
                 Behavior on color { ColorAnimation { duration: 120 } }
@@ -159,6 +160,8 @@ Rectangle {
                     id: btRow
                     anchors.centerIn: parent
                     spacing: 4
+                    scale: btTap.pressed ? 0.94 : 1.0
+                    Behavior on scale { NumberAnimation { duration: 80 } }
 
                     MaterialIcon {
                         name: backend.bluetoothConnected ? "bluetooth_connected" : (backend.bluetoothPowered ? "bluetooth" : "bluetooth_disabled")
@@ -179,11 +182,10 @@ Rectangle {
                     }
                 }
 
-                MouseArea {
-                    id: btMouseArea
-                    anchors.fill: parent
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: topBarRoot.requestOpenSettings("bt")
+                TapHandler {
+                    id: btTap
+                    margin: 10
+                    onTapped: topBarRoot.requestOpenSettings("bt")
                 }
             }
         }

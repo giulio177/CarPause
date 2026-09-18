@@ -213,9 +213,9 @@ Item {
                                         size: 24
                                         iconColor: theme.textPrimary
                                     }
-
-                                    MouseArea {
+                                     MouseArea {
                                         anchors.fill: parent
+                                        preventStealing: true
                                         enabled: backend.hasMedia
                                         onClicked: backend.previousTrack()
                                     }
@@ -237,6 +237,7 @@ Item {
 
                                     MouseArea {
                                         anchors.fill: parent
+                                        preventStealing: true
                                         enabled: backend.hasMedia
                                         onClicked: backend.togglePlay()
                                     }
@@ -260,6 +261,7 @@ Item {
                                     MouseArea {
                                         id: nextMouseArea
                                         anchors.fill: parent
+                                        preventStealing: true
                                         enabled: backend.hasMedia
                                         onClicked: backend.nextTrack()
                                     }
@@ -293,6 +295,7 @@ Item {
                                     MouseArea {
                                         id: shuffleBtnArea
                                         anchors.fill: parent
+                                        preventStealing: true
                                         enabled: backend.hasMedia
                                         onClicked: backend.toggleShuffle()
                                     }
@@ -317,6 +320,7 @@ Item {
                                     MouseArea {
                                         id: repeatBtnArea
                                         anchors.fill: parent
+                                        preventStealing: true
                                         enabled: backend.hasMedia
                                         onClicked: backend.toggleRepeat()
                                     }
@@ -426,6 +430,7 @@ Item {
                             MouseArea {
                                 id: libClassicArea
                                 anchors.fill: parent
+                                preventStealing: true
                                 onClicked: backend.setMediaSubView("library")
                             }
                         }
@@ -457,6 +462,7 @@ Item {
                             MouseArea {
                                 id: lyricsClassicArea
                                 anchors.fill: parent
+                                preventStealing: true
                                 onClicked: {
                                     mediaViewRoot.showLyrics = true;
                                 }
@@ -490,6 +496,7 @@ Item {
                             MouseArea {
                                 id: histClassicArea
                                 anchors.fill: parent
+                                preventStealing: true
                                 onClicked: backend.setMediaSubView("history")
                             }
                         }
@@ -677,6 +684,7 @@ Item {
 
                                 MouseArea {
                                     anchors.fill: parent
+                                    preventStealing: true
                                     enabled: backend.hasMedia
                                     onClicked: backend.previousTrack()
                                 }
@@ -697,6 +705,7 @@ Item {
 
                                 MouseArea {
                                     anchors.fill: parent
+                                    preventStealing: true
                                     enabled: backend.hasMedia
                                     onClicked: backend.togglePlay()
                                 }
@@ -718,6 +727,7 @@ Item {
 
                                 MouseArea {
                                     anchors.fill: parent
+                                    preventStealing: true
                                     enabled: backend.hasMedia
                                     onClicked: backend.nextTrack()
                                 }

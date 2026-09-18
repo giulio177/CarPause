@@ -31,7 +31,7 @@ Rectangle {
                 width: 40
                 height: 40
                 radius: 20
-                color: theme.surfaceElevated
+                color: miniPlayTap.pressed ? theme.surfaceBorder : theme.surfaceElevated
                 border.color: backend.hasMedia ? theme.accentCyan : theme.surfaceBorder
                 border.width: 1
                 opacity: backend.hasMedia ? 1.0 : 0.45
@@ -41,12 +41,14 @@ Rectangle {
                     name: backend.isPlaying ? "pause" : "play_arrow"
                     size: 20
                     iconColor: backend.hasMedia ? theme.accentCyan : theme.textMuted
+                    scale: miniPlayTap.pressed ? 0.88 : 1.0
                 }
 
-                MouseArea {
-                    anchors.fill: parent
+                TapHandler {
+                    id: miniPlayTap
                     enabled: backend.hasMedia
-                    onClicked: backend.togglePlay()
+                    margin: 10
+                    onTapped: backend.togglePlay()
                 }
             }
 
@@ -90,16 +92,17 @@ Rectangle {
                 width: 90
                 height: 54
                 radius: theme.radiusMedium
-                color: isActive ? Qt.rgba(0, 0.898, 1, 0.12) : (navTabMouse.containsMouse ? Qt.rgba(255, 255, 255, 0.05) : "transparent")
+                color: isActive ? Qt.rgba(0, 0.898, 1, 0.12) : (navTabTap.pressed ? Qt.rgba(255, 255, 255, 0.08) : "transparent")
                 border.color: isActive ? theme.accentCyan : "transparent"
                 border.width: 1.5
 
-                Behavior on color { ColorAnimation { duration: 150 } }
-                Behavior on scale { NumberAnimation { duration: 100 } }
+                Behavior on color { ColorAnimation { duration: 120 } }
 
                 Column {
                     anchors.centerIn: parent
                     spacing: 3
+                    scale: navTabTap.pressed ? 0.92 : 1.0
+                    Behavior on scale { NumberAnimation { duration: 80 } }
 
                     MaterialIcon {
                         name: iconName
@@ -119,15 +122,10 @@ Rectangle {
                     }
                 }
 
-                MouseArea {
-                    id: navTabMouse
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onPressed: parent.scale = 0.94
-                    onReleased: parent.scale = 1.0
-                    onCanceled: parent.scale = 1.0
-                    onClicked: backend.changeView(viewId)
+                TapHandler {
+                    id: navTabTap
+                    margin: 8
+                    onTapped: backend.changeView(viewId)
                 }
             }
 
@@ -148,30 +146,25 @@ Rectangle {
             spacing: 8
 
             Rectangle {
-                id: muteBtn
-                width: 42
-                height: 42
-                radius: 21
-                color: backend.isMuted ? "#381520" : (muteMouseArea.pressed ? "#232F42" : theme.surfaceElevated)
-                border.color: backend.isMuted ? theme.accentRed : (muteMouseArea.containsMouse ? theme.accentCyan : theme.surfaceBorder)
-                border.width: backend.isMuted ? 2 : 1
-                scale: muteMouseArea.pressed ? 0.92 : 1.0
-
-                Behavior on scale { NumberAnimation { duration: 100 } }
-                Behavior on color { ColorAnimation { duration: 150 } }
+                width: 40
+                height: 40
+                radius: 20
+                color: backend.isMuted ? "#381520" : (muteTap.pressed ? "#232F42" : theme.surfaceElevated)
+                border.color: backend.isMuted ? theme.accentRed : (muteTap.pressed ? theme.accentCyan : theme.surfaceBorder)
+                border.width: 1
 
                 MaterialIcon {
                     anchors.centerIn: parent
-                    name: backend.isMuted ? "volume_off" : (backend.volume === 0 ? "volume_mute" : "volume_up")
+                    name: backend.isMuted ? "volume_off" : (backend.masterVolume > 50 ? "volume_up" : "volume_down")
                     size: 20
-                    iconColor: backend.isMuted ? theme.accentRed : theme.textPrimary
+                    iconColor: backend.isMuted ? theme.accentRed : (backend.masterVolume > 100 ? theme.accentYellow : theme.textSecondary)
+                    scale: muteTap.pressed ? 0.88 : 1.0
                 }
 
-                MouseArea {
-                    id: muteMouseArea
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    onClicked: backend.toggleMute()
+                TapHandler {
+                    id: muteTap
+                    margin: 10
+                    onTapped: backend.toggleMute()
                 }
             }
 
@@ -265,6 +258,7 @@ Rectangle {
             MouseArea {
                 id: restartMouseArea
                 anchors.fill: parent
+                preventStealing: true
                 pressAndHoldInterval: 3000
                 property bool holdTriggered: false
 

@@ -60,21 +60,21 @@ Rectangle {
                 implicitWidth: discRow.implicitWidth + 24
                 implicitHeight: 32
                 radius: height / 2
-                scale: discMouseArea.pressed ? 0.95 : 1.0
 
                 color: backend.bluetoothDiscoverable 
                     ? Qt.rgba(0.0, 0.9, 0.46, 0.12) 
-                    : (discMouseArea.pressed ? "#252F43" : theme.surfaceElevated)
+                    : (discTap.pressed ? "#252F43" : theme.surfaceElevated)
                 border.color: theme.surfaceBorder
                 border.width: 1
 
                 Behavior on color { ColorAnimation { duration: 180 } }
-                Behavior on scale { NumberAnimation { duration: 100 } }
 
                 Row {
                     id: discRow
                     anchors.centerIn: parent
                     spacing: 7
+                    scale: discTap.pressed ? 0.95 : 1.0
+                    Behavior on scale { NumberAnimation { duration: 80 } }
 
                     // Subtle abstract status dot
                     Rectangle {
@@ -108,10 +108,10 @@ Rectangle {
                     }
                 }
 
-                MouseArea {
-                    id: discMouseArea
-                    anchors.fill: parent
-                    onClicked: backend.toggleBluetoothDiscoverable()
+                TapHandler {
+                    id: discTap
+                    margin: 8
+                    onTapped: backend.toggleBluetoothDiscoverable()
                 }
             }
 
@@ -184,6 +184,7 @@ Rectangle {
             contentHeight: btListColumn.height
             clip: true
             boundsBehavior: Flickable.StopAtBounds
+            pressDelay: 120
 
             Column {
                 id: btListColumn
@@ -282,6 +283,7 @@ Rectangle {
                                         MouseArea {
                                             id: devInfoArea
                                             anchors.fill: parent
+                                            preventStealing: true
                                             onClicked: {
                                                 deviceDetailsModal.openForDevice(modelData);
                                             }
@@ -294,6 +296,7 @@ Rectangle {
                                     id: rowDevArea
                                     anchors.fill: parent
                                     anchors.rightMargin: 46 // Don't block info button
+                                    preventStealing: true
                                     onClicked: {
                                         if (!modelData || !modelData.mac) return;
                                         if (isConnected) {
@@ -355,6 +358,7 @@ Rectangle {
                             MouseArea {
                                 id: otherScanArea
                                 anchors.fill: parent
+                                preventStealing: true
                                 enabled: !backend.bluetoothScanning
                                 onClicked: backend.scanBluetooth()
                             }
@@ -445,6 +449,7 @@ Rectangle {
                                         MouseArea {
                                             id: otherDevInfoArea
                                             anchors.fill: parent
+                                            preventStealing: true
                                             onClicked: {
                                                 deviceDetailsModal.openForDevice(modelData);
                                             }
@@ -457,6 +462,7 @@ Rectangle {
                                     id: otherDevRowArea
                                     anchors.fill: parent
                                     anchors.rightMargin: 46 // Don't block info button
+                                    preventStealing: true
                                     onClicked: {
                                         if (modelData && modelData.mac) {
                                             backend.connectBluetoothDevice(modelData.mac);
