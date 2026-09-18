@@ -282,11 +282,6 @@ class AirPlayService:
                     # KMS DRM framebuffer on Raspberry Pi FKMS
                     cmd.extend(["-vs", "kmssink"])
 
-            # Disable sRGB colorspace conversion filter on Raspberry Pi
-            # UxPlay README: "On Raspberry Pi, use of -srgb is generally not needed and adds to CPU load; use -srgb no"
-            # This avoids GStreamer forcing video/x-raw,format=RGB with swapped R/B channels.
-            cmd.extend(["-srgb", "no"])
-
             # Optimize audio sink
             cmd.extend(["-as", "pulsesink"])
 
